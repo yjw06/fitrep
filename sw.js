@@ -1,5 +1,5 @@
 // FITREP 서비스 워커 — 앱 셸 캐시. 배포마다 CACHE_VERSION을 올린다(js/version.js와 같게).
-const CACHE_VERSION = '2.1.0';
+const CACHE_VERSION = '2.2.0';
 const CACHE = `fitrep-${CACHE_VERSION}`;
 const SHELL = [
   './',

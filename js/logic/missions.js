@@ -1,6 +1,9 @@
 // 체력단련 미션 계산 (순수 함수)
+// 체력단련 중엔 폰을 못 쓴다 → 전날 저녁 브리핑 + 끝난 뒤 결과 기록(완료/일부/못함) 방식
 import { skillPlan, skillDose } from './rank.js';
-export { isTestDay } from './pttest.js';
+import { isTestDay } from './pttest.js';
+import { addDays, dowOf } from './dates.js';
+export { isTestDay };
 
 // 항목별 최신 검정 값(날짜 내림차순으로 첫 non-null)
 export function latestTestValues(tests) {
@@ -14,6 +17,42 @@ export const sixty = (max, ratio = 0.6) => (max > 0 ? Math.max(1, Math.round(max
 // 400m 목표 페이스(초) = 목표 3km ÷ 7.5
 export const intervalPace = (goalSec, divisor = 7.5) => (goalSec > 0 ? Math.round(goalSec / divisor) : null);
 
+// 결과 기록: done=완료, partial=일부, skip=못함
+export const MISSION_STATUS = ['done', 'partial', 'skip'];
+
+const SHORT = { situp: '윗몸', pushup: '팔굽', skill: '스킬', interval: '인터벌', run: '달리기', rest: '휴식', test: '검정' };
+const RECORDABLE = new Set(['situp', 'pushup', 'skill', 'interval']);
+
+// 결과를 기록할 미션이 있는 요일인지(선택 항목만 있는 날·달리기만·휴식은 제외)
+export const isRecordable = (dow, program) => (program.CALISTHENICS[dow] ?? []).some((m) => RECORDABLE.has(m.type) && !m.optional);
+
+// 주간 칸에 쓸 짧은 이름(선택 항목 제외). 일요일은 검정일이면 '검정', 아니면 '휴식'
+export function missionShort(dow, program, testDay = false) {
+  const items = (program.CALISTHENICS[dow] ?? []).filter((m) => !m.optional);
+  if (items.some((m) => m.type === 'test')) return testDay ? SHORT.test : SHORT.rest;
+  return items.map((m) => SHORT[m.type] ?? m.type).join('+');
+}
+
+/**
+ * 이번 주(월~일) 체력단련 결과
+ * @returns {{ days:[{ date, dow, label, recordable, status, future }], done, partial, skip, required }}
+ */
+export function weekMissions({ monday, today, missions, program, anchor = null }) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(monday, i);
+    const dow = dowOf(date);
+    return {
+      date, dow,
+      label: missionShort(dow, program, isTestDay(date, anchor)),
+      recordable: isRecordable(dow, program),
+      status: missions[date]?.status ?? null,
+      future: date > today,
+    };
+  });
+  const req = days.filter((d) => d.recordable);
+  const count = (s) => req.filter((d) => d.status === s).length;
+  return { days, done: count('done'), partial: count('partial'), skip: count('skip'), required: req.length };
+}
 
 /**
  * 요일별 미션 카드 데이터

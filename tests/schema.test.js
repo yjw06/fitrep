@@ -70,7 +70,7 @@ test('v2 → v3 마이그레이션: 체중·단백질 저장값만 제거, 나�
     reschedule: { '2026-11-02': { passes: [{ date: '2026-11-03', key: 'LA', reason: '당직' }], applied: null } },
   };
   const s = migrate(v2);
-  assert.equal(s.schema, 3);
+  assert.equal(s.schema, SCHEMA_VERSION);
   for (const k of ['bodyweight', 'protein']) assert.equal(k in s, false, k);
   for (const k of ['proteinTarget', 'proteinPresets']) assert.equal(k in s.settings, false, k);
   assert.deepEqual(s.settings.gymDays, [1, 2, 4, 5]);
@@ -79,4 +79,14 @@ test('v2 → v3 마이그레이션: 체중·단백질 저장값만 제거, 나�
   assert.equal(s.intervals[0].laps[0], 98);
   assert.equal(s.skillLogs.length, 1);
   assert.equal(s.reschedule['2026-11-02'].passes[0].reason, '당직');
+});
+
+test('v3 → v4 마이그레이션: 미션 완료 체크 → 결과 기록', () => {
+  const s = migrate({
+    schema: 3, setupDone: true, settings: { callsign: 'EAGLE' },
+    missions: { '2026-11-02': { done: true, at: 5 }, '2026-11-03': { done: false }, '2026-11-04': { status: 'partial', at: 7 } },
+  });
+  assert.equal(s.schema, 4);
+  assert.deepEqual(s.missions, { '2026-11-02': { status: 'done', at: 5 }, '2026-11-04': { status: 'partial', at: 7 } });
+  assert.equal(s.settings.callsign, 'EAGLE');
 });

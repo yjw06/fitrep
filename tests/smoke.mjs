@@ -59,6 +59,15 @@ try {
   await shot('today');
   step('금일 임무: 상체A + 윗몸 36×4 + DTG');
 
+  // 체력단련: 끝난 뒤 결과 기록 + 내일 브리핑(폰은 체력단련 중 사용 불가)
+  await tid('pt-done').click();
+  await page.waitForSelector('[data-testid="pt-day-2026-11-02"].s-done');
+  assert.match(await tid('pt-tomorrow').textContent(), /팔굽혀펴기30 개 × 5세트/); // 팔굽 50 × 0.6
+  assert.match(await tid('pt-summary').textContent(), /완료 1 · 일부 0 · 못함 0 \/ 5일/);
+  assert.equal(await tid('pt-day-2026-11-05').isDisabled(), true); // 목(달리기만)·미래는 선택 불가
+  await shot('pt-mission');
+  step('체력단련 결과 기록(완료) + 내일 브리핑(팔굽 30×5) + 주간 7칸');
+
   await tid('pick-LB').click();
   assert.match(await tid('session-card').textContent(), /하체B/);
   await tid('pick-UA').click();
@@ -159,7 +168,7 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
   assert.equal(stored.targets.bench.weight, 62.5);
   assert.equal(stored.exState.negPullup.stage, 1);
-  assert.equal(stored.schema, 3);
+  assert.equal(stored.schema, 4);
 
 
   // ───────── 2단계 ─────────
@@ -184,6 +193,12 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   const rs = Object.values((await st()).reschedule)[0];
   assert.deepEqual(rs.applied.assign, { '2026-11-04': 'LA', '2026-11-05': 'UB', '2026-11-06': 'LB' });
   step('패스(당직) → 재배치안 최대 3개 → 적용(수 하체A·목 상체B·금 하체B)');
+
+  await tid('pt-day-2026-11-02').click();
+  await tid('pt-partial').click();
+  assert.equal((await st()).missions['2026-11-02'].status, 'partial');
+  assert.match(await tid('pt-summary').textContent(), /완료 0 · 일부 1/);
+  step('지난 날(월) 체력단련 결과 수정 → 일부');
 
   // 체력 검정 2분 모드
   await page.click('#tabbar a[data-tab=test]');
@@ -255,7 +270,7 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   step('서비스 워커 등록 + 저장 상태 확인');
 
 
-  // 2.0.0(schema 2) 저장 데이터 → v3 마이그레이션 로드(체중·단백질 제거, 나머지 유지)
+  // 2.0.0(schema 2) 저장 데이터 → 현재 스키마 로드(체중·단백질 제거, 미션 체크 → 결과 기록, 나머지 유지)
   const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const p2 = await ctx2.newPage();
   p2.on('pageerror', (e) => errors.push(`[v1] ${e}`));
@@ -266,7 +281,7 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
       settings: { callsign: 'OLDTIMER', startDate: '2026-11-02', goals: { pullups: 10, pushups: 70, situps: 80, run3kSec: 750 }, proteinTarget: [120, 150], proteinPresets: [{ name: '닭가슴살 200g', g: 45 }] },
       tests: [{ id: 'x', date: '2026-11-01', pullups: 7, pushups: 50, situps: 60, mode: 'manual' }],
       sessions: [{ id: 's1', key: 'UA', date: '2026-11-02', week: 1, startedAt: 1, endedAt: 2, entries: [{ slotId: 'UA2', ex: 'bench', presc: { sets: 4, reps: [5, 6] }, sets: [{ w: 60, reps: 6, rir: 2 }] }], results: [] }],
-      targets: { bench: { weight: 62.5 } }, exState: {}, missions: {}, reschedule: {},
+      targets: { bench: { weight: 62.5 } }, exState: {}, missions: { '2026-11-02': { done: true, at: 1 } }, reschedule: {},
       bodyweight: [{ date: '2026-11-02', kg: 70.1 }], protein: { '2026-11-02': [{ name: '닭가슴살 200g', g: 45 }] },
       intervals: [], skillLogs: [], drill: null,
     }));
@@ -275,7 +290,8 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   await p2.waitForSelector('[data-testid=session-card]');
   assert.match(await p2.textContent('#callsign'), /OLDTIMER/);
   const m = await p2.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
-  assert.equal(m.schema, 3);
+  assert.equal(m.schema, 4);
+  assert.deepEqual(m.missions['2026-11-02'], { status: 'done', at: 1 });
   assert.equal(m.sessions.length, 1);
   assert.equal(m.targets.bench.weight, 62.5);
   assert.equal('bodyweight' in m || 'protein' in m || 'proteinPresets' in m.settings, false);
@@ -283,7 +299,7 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   await p2.evaluate(() => { location.hash = '#test'; });
   await p2.waitForSelector('[data-testid=rank-card]:has-text("상병")');
   await ctx2.close();
-  step('2.0.0 데이터 → v3 마이그레이션(체중·단백질 제거, 기록 유지, 상병 판정)');
+  step('2.0.0 데이터 → v4 마이그레이션(체중·단백질 제거, 미션 완료 → 결과 기록, 상병 판정)');
 
   assert.deepEqual(errors, []);
   console.log('\nSMOKE OK');

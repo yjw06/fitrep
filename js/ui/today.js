@@ -1,8 +1,8 @@
-// 금일 임무: 검정일 카드 + 세션 카드(패스·재편성) + 체력단련 미션 + 이번 주 진행 4칸
+// 금일 임무: 검정일 카드 + 세션 카드(패스·재편성) + 체력단련 미션(결과 기록·내일 브리핑) + 이번 주 진행 4칸
 import { h, mount, label, stamp } from './dom.js';
 import { state, save } from '../store.js';
-import { dowOf, shortDate, fmtClock, addDays, mondayOf } from '../logic/dates.js';
-import { missionsFor } from '../logic/missions.js';
+import { dowOf, dowKo, shortDate, fmtClock, addDays, mondayOf } from '../logic/dates.js';
+import { missionsFor, weekMissions } from '../logic/missions.js';
 import { testAnchor, isTestDay } from '../logic/pttest.js';
 import { weekDone } from '../logic/stats.js';
 import { P, today, weekInfo, exName, prescText, planFor, pullupRank, scheduleFor, passOf, reschedOf, insignia } from './common.js';
@@ -84,48 +84,111 @@ function testDayCard(date) {
     h('button', { class: 'btn primary block big', onclick: () => go('#test') }, done ? '검정 기록 보기' : '체력 검정 시작'));
 }
 
-function missionCard(date) {
-  const r = pullupRank();
-  const items = missionsFor(dowOf(date), {
-    tests: state.tests, goals: state.settings.goals, program: P, rankIdx: r.idx,
+// ── 체력단련(PT) 미션: 체력단련 중엔 폰을 못 쓰므로 전날 저녁 브리핑 + 끝난 뒤 결과 기록 ──
+const STATUS = { done: ['완료', '✓'], partial: ['일부', '△'], skip: ['못함', '✕'] };
+let ptDay = null; // 결과를 기록할 날짜(기본 오늘, 이번 주 지난 날 선택 가능)
+
+function ptItems(date, rankIdx) {
+  return missionsFor(dowOf(date), {
+    tests: state.tests, goals: state.settings.goals, program: P, rankIdx,
     testDay: isTestDay(date, testAnchor(state.settings)),
   });
-  const rec = state.missions[date];
-  const body = items.map((m) => {
-    let detail;
-    if (m.type === 'situp' || m.type === 'pushup') {
-      detail = m.missing
+}
+
+// 한 줄 요약(오늘 — 결과 기록용)
+function ptLine(m) {
+  switch (m.type) {
+    case 'situp':
+    case 'pushup':
+      return m.missing ? `${m.title} — 검정 값 없음` : `${m.title} ${m.reps}개 × ${m.sets}세트`;
+    case 'skill': return `${m.title}: ${m.steps.map((s) => `${s.name} ${s.dose}`).join(' → ')}`;
+    case 'interval': return `${m.title}${m.optional ? '(선택)' : ''} · 목표 ${m.pace ? fmtClock(m.pace) : '—'}/400m`;
+    case 'test': return m.due ? '체력 검정일 — 검정 탭에서 측정' : null;
+    default: return m.title;
+  }
+}
+
+// 자세한 브리핑(내일 — 전날 저녁에 외워 둘 것)
+function ptBrief(m, rank) {
+  if (m.type === 'situp' || m.type === 'pushup') {
+    return h('div', { class: 'mission-item' }, h('h3', null, m.title),
+      m.missing
         ? h('div', { class: 'muted small' }, '검정 값이 없습니다 — 검정 탭에서 입력하세요')
-        : h('div', null, h('span', { class: 'kpi' }, m.reps), h('span', null, ` 개 × ${m.sets}세트`), h('span', { class: 'muted small' }, ` · 휴식 ${m.rest}초 · 최대 ${m.max}의 60%`));
-    } else if (m.type === 'skill') {
-      detail = [
-        h('div', { class: 'row muted small' }, insignia(r.rank.bars, 14), m.sub),
-        h('ol', null, m.steps.map((s) => h('li', null, h('b', null, `${s.name} ${s.dose}`), h('span', { class: 'muted small' }, ` — ${s.cue}`)))),
-        h('button', { class: 'btn od block', 'data-testid': 'skill-start', onclick: () => go('#skill') }, state.drill?.type === 'skill' ? '스킬 가이드 이어서' : '스킬 가이드 시작'),
-      ];
-    } else if (m.type === 'interval') {
-      detail = [
-        h('div', null, '목표 페이스 ', h('span', { class: 'kpi' }, m.pace ? fmtClock(m.pace) : '—'), h('span', { class: 'muted small' }, ` /400m · 사이 ${m.walk}초 걷기${m.optional ? ' · 선택' : ''}`)),
-        h('button', { class: 'btn od block', style: 'margin-top:8px', 'data-testid': 'interval-start', onclick: () => go('#interval') }, state.drill?.type === 'interval' ? '인터벌 코치 이어서' : '인터벌 코치'),
-      ];
-    } else if (m.type === 'test' && m.due) {
-      detail = h('div', { class: 'muted small' }, m.sub);
-    } else {
-      detail = m.sub && h('div', { class: 'muted small' }, m.sub);
-    }
-    return h('div', { class: 'mission-item' }, h('h3', null, m.title), detail);
-  });
-  const restDay = items.every((m) => m.type === 'rest' || m.type === 'test' || m.type === 'run');
+        : h('div', null, h('span', { class: 'kpi' }, m.reps), ` 개 × ${m.sets}세트`, h('span', { class: 'muted small' }, ` · 휴식 ${m.rest}초 · 최대 ${m.max}의 60%`)));
+  }
+  if (m.type === 'skill') {
+    return h('div', { class: 'mission-item' }, h('h3', null, m.title),
+      h('div', { class: 'row muted small' }, insignia(rank.bars, 14), m.sub),
+      h('ol', null, m.steps.map((s) => h('li', null, h('b', null, `${s.name} ${s.dose}`), h('span', { class: 'muted small' }, ` — ${s.cue}`)))));
+  }
+  if (m.type === 'interval') {
+    return h('div', { class: 'mission-item' }, h('h3', null, `${m.title}${m.optional ? ' (선택)' : ''}`),
+      h('div', null, '목표 페이스 ', h('span', { class: 'kpi' }, m.pace ? fmtClock(m.pace) : '—'), h('span', { class: 'muted small' }, ` /400m · 사이 ${m.walk}초 걷기`)));
+  }
+  if (m.type === 'test' && !m.due) return null;
+  return h('div', { class: 'mission-item' }, h('h3', null, m.type === 'test' ? '체력 검정일' : m.title), m.sub && h('div', { class: 'muted small' }, m.sub));
+}
+
+function missionCard(date) {
+  const r = pullupRank();
+  const anchor = testAnchor(state.settings);
+  const mon = mondayOf(date);
+  if (ptDay && (ptDay >= date || ptDay < mon)) ptDay = null;
+  const sel = ptDay ?? date;
+  const week = weekMissions({ monday: mon, today: date, missions: state.missions, program: P, anchor });
+  const selDay = week.days.find((d) => d.date === sel);
+  const todayItems = ptItems(date, r.idx);
+  const tomorrow = addDays(date, 1);
+  const tomorrowItems = ptItems(tomorrow, r.idx);
+  const cur = state.missions[sel]?.status ?? null;
+
+  const record = selDay.recordable
+    ? h('div', { class: 'seg', role: 'group', 'aria-label': '체력단련 결과' }, Object.entries(STATUS).map(([k, [text, icon]]) =>
+      h('button', {
+        type: 'button', class: `${k}${cur === k ? ' on' : ''}`, 'aria-pressed': String(cur === k), 'data-testid': `pt-${k}`,
+        onclick: () => {
+          if (cur === k) delete state.missions[sel];
+          else state.missions[sel] = { status: k, at: Date.now() };
+          save(); rerender();
+        },
+      }, `${icon} ${text}`)))
+    : h('div', { class: 'muted small' }, '오늘은 기록할 미션이 없습니다. 지난 날 결과는 아래 칸을 눌러 기록하세요.');
+
+  const strip = h('div', { class: 'week7', 'data-testid': 'pt-week' }, week.days.map((d) => {
+    const st = d.status ? STATUS[d.status] : null;
+    const pickable = d.recordable && !d.future;
+    return h('button', {
+      type: 'button', disabled: !pickable, 'data-testid': `pt-day-${d.date}`,
+      class: [d.status && `s-${d.status}`, !d.recordable && 'na', d.future && 'future', d.date === sel && 'sel'].filter(Boolean).join(' '),
+      'aria-label': `${shortDate(d.date)} ${d.label} ${st ? st[0] : d.recordable ? '미기록' : '기록 없음'}`,
+      onclick: () => { ptDay = d.date === date ? null : d.date; rerender(); },
+    }, h('span', { class: 'd' }, dowKo(d.dow)), h('span', { class: 'lb' }, d.label), h('span', { class: 'st' }, st ? st[1] : d.recordable ? '·' : '—'));
+  }));
+
+  const drills = todayItems.filter((m) => m.type === 'skill' || m.type === 'interval');
   return h('div', { class: 'card hud', 'data-testid': 'mission-card' },
-    h('div', { class: 'spread' }, label('PT MISSION'), rec?.done && stamp()),
-    h('div', { class: 'muted small' }, '체력단련 추가(달리기 후 10~15분) · 업힐 2.8km는 기록하지 않음'),
-    body,
-    !restDay && h('label', { class: 'check' },
-      h('input', { type: 'checkbox', checked: !!rec?.done, 'data-testid': 'mission-done', onchange: (e) => {
-        if (e.target.checked) state.missions[date] = { done: true, at: Date.now() };
-        else delete state.missions[date];
-        save(); rerender();
-      } }), '체력단련 미션 완료'));
+    h('div', { class: 'spread' }, label('PT MISSION'), state.missions[date]?.status === 'done' && stamp()),
+    h('div', { class: 'muted small' }, '체력단련 중엔 폰을 못 쓰니 전날 저녁에 확인하고, 끝난 뒤 결과만 기록하세요. 업힐 2.8km는 기록하지 않습니다.'),
+
+    h('div', { class: 'pt-sec' }, label(`TODAY · ${shortDate(date)}`),
+      todayItems.map(ptLine).filter(Boolean).map((t) => h('div', { class: 'pt-line' }, t))),
+    h('div', { class: 'pt-sec' },
+      h('div', { class: 'spread' }, label(sel === date ? 'RESULT' : `RESULT · ${shortDate(sel)}`),
+        sel !== date && h('button', { class: 'btn sm ghost', onclick: () => { ptDay = null; rerender(); } }, '오늘로')),
+      record),
+
+    h('div', { class: 'pt-sec', 'data-testid': 'pt-tomorrow' }, label(`TOMORROW · ${shortDate(tomorrow)}`),
+      tomorrowItems.map((m) => ptBrief(m, r.rank)).filter(Boolean)),
+
+    h('div', { class: 'pt-sec' },
+      h('div', { class: 'spread' }, label('THIS WEEK'), h('span', { class: 'muted small mono', 'data-testid': 'pt-summary' },
+        `완료 ${week.done} · 일부 ${week.partial} · 못함 ${week.skip} / ${week.required}일`)),
+      strip),
+
+    drills.length > 0 && h('div', { class: 'row wrap pt-sec' }, h('span', { class: 'muted small' }, '폰을 쓸 수 있을 때만:'),
+      drills.map((m) => m.type === 'skill'
+        ? h('button', { class: 'btn sm', 'data-testid': 'skill-start', onclick: () => go('#skill') }, state.drill?.type === 'skill' ? '스킬 가이드 이어서' : '스킬 가이드')
+        : h('button', { class: 'btn sm', 'data-testid': 'interval-start', onclick: () => go('#interval') }, '인터벌 코치'))));
 }
 
 function weekCard(date) {

@@ -1,7 +1,7 @@
 // 저장 스키마 + 마이그레이션 (순수 함수). store.js가 localStorage 입출력을 맡는다.
 // 2단계 필드(intervals, reschedule, skillLogs, drill 등)도 여기서 정의한다.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 export const APP_ID = 'fitrep';
 
 export function defaultSettings() {
@@ -35,7 +35,7 @@ export function defaultState() {
     active: null,     // 진행 중 세션(복원용)
     targets: {},      // { exId: { weight, reason, date } } 다음 세션 목표
     exState: {},      // { negPullup: { stage } }
-    missions: {},     // { 'YYYY-MM-DD': { done: true, at } }
+    missions: {},     // { 'YYYY-MM-DD': { status: 'done'|'partial'|'skip', at } } 체력단련 결과(사후 기록)
     // 2단계
     intervals: [],    // [{ date, laps:[sec] }]
     reschedule: {},   // { mondayStr: { passes:[{ date, key, reason, at }], applied:{ from, assign:{date:key}, skip:[key] }|null } }
@@ -76,6 +76,15 @@ const MIGRATIONS = {
     const { bodyweight, protein, ...rest } = s;
     const { proteinTarget, proteinPresets, ...settings } = s.settings ?? {};
     return { ...rest, settings };
+  },
+  // v3 → v4: 체력단련 미션 완료 체크 → 결과 기록(완료/일부/못함)
+  3: (s) => {
+    const missions = {};
+    for (const [date, m] of Object.entries(s.missions ?? {})) {
+      const status = m?.status ?? (m?.done ? 'done' : null);
+      if (status) missions[date] = { status, at: m?.at ?? null };
+    }
+    return { ...s, missions };
   },
 };
 

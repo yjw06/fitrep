@@ -198,7 +198,7 @@ body.session-mode .tabbar { display: none; }
   padding: 4px 12px; text-align: center; line-height: 1.15; opacity: .9; font-weight: 800; letter-spacing: .08em;
 }
 .stamp .en { display: block; font-family: var(--stencil); font-size: 11px; letter-spacing: .25em; font-weight: 400; }
-.stamp { font-size: 14px; flex: none; margin: 2px 4px 4px 0; }
+.stamp { font-size: 14px; flex: none; margin: 2px 6px 16px 0; } /* 기울어진 만큼 아래 여백 */
 
 /* 판정 결과 */
 .res { border-top: 1px solid var(--line); padding: 10px 0; }
@@ -262,3 +262,25 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 .laps .slow { color: var(--alert); }
 .laps .fast { color: var(--amber); }
 .topbar .insignia rect.off { display: none; }
+
+/* ── 체력단련 미션: 결과 기록 + 주간 7칸 ── */
+.pt-sec { border-top: 1px dashed var(--line); padding: 10px 0 2px; margin-top: 10px; }
+.pt-line { margin: 4px 0; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+.seg button { min-height: var(--tap); border: 1px solid var(--line); background: var(--sunk); font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.seg button.done.on { background: var(--od); border-color: var(--od); color: #ECE8D9; }
+.seg button.partial.on { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
+.seg button.skip.on { background: var(--alert); border-color: var(--alert); color: #fff; }
+.week7 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 6px; }
+.week7 button {
+  min-height: 60px; padding: 4px 0; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 10px; line-height: 1.2; word-break: keep-all;
+}
+.week7 button[disabled] { cursor: default; }
+.week7 .d { font-weight: 700; font-size: 12px; }
+.week7 .st { font: 700 15px var(--mono); }
+.week7 .s-done { background: var(--od); border-color: var(--od); color: #ECE8D9; }
+.week7 .s-partial { border-color: var(--amber); color: var(--amber); }
+.week7 .s-skip { border-color: var(--alert); color: var(--alert); }
+.week7 .na, .week7 .future { opacity: .5; }
+.week7 .sel { outline: 2px solid var(--amber); outline-offset: -2px; }

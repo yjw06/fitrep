@@ -21,7 +21,7 @@ function ensureDrill() {
 
 function finish(d) {
   state.skillLogs.push({ date: d.date, rank: d.rank, sets: d.sets.filter((s) => s.done).map(({ label: l, reps, sec, name }) => ({ name, label: l, reps, sec })) });
-  state.missions[d.date] ??= { done: true, at: Date.now() };
+  state.missions[d.date] ??= { status: 'done', at: Date.now() };
   state.drill = null;
   save();
   toast('스킬 데이 기록 저장');
