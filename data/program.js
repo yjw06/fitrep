@@ -189,9 +189,6 @@ export const PT_TEST = { sec: 120, cueEvery: 30, countdown: 3, items: { pushups:
 // 작전 재편성 패스 사유
 export const PASS_REASONS = ['당직', '훈련', '휴가', '외출·외박', '컨디션', '기타'];
 
-// 체중·단백질
-export const BODY = { avgDays: 7, compareDays: 14, minGain: 0.2, kcal: 300, weeklyGain: [0.2, 0.4], minEntries: 3 };
-
 export const WARMUP_STEPS = [
   { pct: 0, reps: 10, label: '빈봉' },
   { pct: 0.5, reps: 5 },

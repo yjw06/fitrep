@@ -73,24 +73,6 @@ export function renderSettings(root) {
             commit(); rerender();
           } }, dowKo(d)))))),
 
-    h('div', { class: 'card' }, label('RATION'),
-      h('div', { class: 'grid2' },
-        h('div', { class: 'field' }, h('span', null, '단백질 목표 하한'), stepper({ value: s.proteinTarget[0], step: 5, min: 0, max: 400, unit: 'g', label: '하한', onChange: (v) => { s.proteinTarget = [v, Math.max(v, s.proteinTarget[1])]; commit(); } })),
-        h('div', { class: 'field' }, h('span', null, '단백질 목표 상한'), stepper({ value: s.proteinTarget[1], step: 5, min: 0, max: 400, unit: 'g', label: '상한', onChange: (v) => { s.proteinTarget = [Math.min(v, s.proteinTarget[0]), v]; commit(); } }))),
-      h('div', { class: 'field' }, h('span', null, '단백질 퀵 추가 프리셋'),
-        s.proteinPresets.map((p, i) => h('div', { class: 'row', style: 'margin-bottom:6px' },
-          h('input', { class: 'grow', value: p.name, style: 'min-height:48px;padding:0 10px;border:1px solid var(--line);background:var(--sunk)', onchange: (e) => { p.name = e.target.value.trim() || p.name; commit('저장'); } }),
-          h('input', { type: 'number', inputmode: 'decimal', value: p.g, style: 'width:80px;min-height:48px;padding:0 8px;border:1px solid var(--line);background:var(--sunk)', onchange: (e) => { if (+e.target.value > 0) { p.g = +e.target.value; commit('저장'); } } }),
-          h('span', { class: 'small' }, 'g'),
-          h('button', { class: 'btn sm danger', 'aria-label': '삭제', onclick: () => { s.proteinPresets.splice(i, 1); commit(); rerender(); } }, '✕'))),
-        h('button', { class: 'btn sm block', onclick: () => {
-          const name = prompt('프리셋 이름(예: 계란 2개)');
-          if (!name) return;
-          const g = +prompt('단백질(g)', '12');
-          if (!(g > 0)) return toast('g을 숫자로 입력하세요');
-          s.proteinPresets.push({ name: name.trim(), g }); commit(); rerender();
-        } }, '+ 프리셋 추가'))),
-
     h('div', { class: 'card' }, label('BAR & PLATES'),
       h('div', { class: 'field' }, h('span', null, '봉 무게'), stepper({ value: s.bar, step: 2.5, min: 0, max: 30, unit: 'kg', label: '봉', onChange: (v) => { s.bar = v; commit(); } })),
       h('div', { class: 'field' }, h('span', null, '보유 원판(한 장 기준)'),

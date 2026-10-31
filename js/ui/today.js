@@ -1,4 +1,4 @@
-// 금일 임무: 검정일 카드 + 세션 카드(패스·재편성) + 체력단련 미션 + 체중·단백질 + 이번 주 진행 4칸
+// 금일 임무: 검정일 카드 + 세션 카드(패스·재편성) + 체력단련 미션 + 이번 주 진행 4칸
 import { h, mount, label, stamp } from './dom.js';
 import { state, save } from '../store.js';
 import { dowOf, shortDate, fmtClock, addDays, mondayOf } from '../logic/dates.js';
@@ -8,7 +8,6 @@ import { weekDone } from '../logic/stats.js';
 import { P, today, weekInfo, exName, prescText, planFor, pullupRank, scheduleFor, passOf, reschedOf, insignia } from './common.js';
 import { startSession } from './session.js';
 import { passDialog, reschedCard, cancelPass } from './reschedule.js';
-import { rationCard } from './body.js';
 import { rerender, go } from './nav.js';
 
 let picked = null; // 수동 선택한 세션(오늘 날짜 한정)
@@ -156,6 +155,5 @@ export function renderToday(root) {
     sessionCard(date, wi),
     reschedCard(date),
     missionCard(date),
-    rationCard(date),
     weekCard(date));
 }

@@ -1,5 +1,5 @@
 // FITREP 서비스 워커 — 앱 셸 캐시. 배포마다 CACHE_VERSION을 올린다(js/version.js와 같게).
-const CACHE_VERSION = '2.0.0';
+const CACHE_VERSION = '2.1.0';
 const CACHE = `fitrep-${CACHE_VERSION}`;
 const SHELL = [
   './',
@@ -12,7 +12,6 @@ const SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './js/app.js',
-  './js/logic/body.js',
   './js/logic/dates.js',
   './js/logic/interval.js',
   './js/logic/missions.js',
@@ -26,7 +25,6 @@ const SHELL = [
   './js/logic/stats.js',
   './js/logic/warmup.js',
   './js/store.js',
-  './js/ui/body.js',
   './js/ui/chart.js',
   './js/ui/common.js',
   './js/ui/dom.js',

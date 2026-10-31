@@ -241,7 +241,6 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 .progress { height: 10px; background: var(--sunk); border: 1px solid var(--line); margin: 6px 0 2px; }
 .progress i { display: block; height: 100%; background: var(--od); }
 .progress i.full { background: var(--amber); }
-.progress.prot i { background: var(--amber); }
 .bigclock { font: 700 72px/1 var(--mono); font-variant-numeric: tabular-nums; text-align: center; color: var(--amber); margin: 12px 0; }
 .bigclock.walk { color: var(--accent); }
 .drill-sub { text-align: center; font-size: 18px; }

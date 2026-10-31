@@ -15,13 +15,12 @@ import { renderSettings } from './ui/settings.js';
 import { renderPtTest, ptTick } from './ui/pttest.js';
 import { renderSkill, skillTick } from './ui/skill.js';
 import { renderInterval, ivTick } from './ui/interval.js';
-import { renderBody } from './ui/body.js';
 import { pullupRank, insignia } from './ui/common.js';
 
 load();
 applyTheme();
 
-const TABS = { today: 'today', session: 'today', summary: 'today', log: 'log', test: 'test', settings: 'settings', pttest: 'test', skill: 'today', interval: 'today', body: 'today' };
+const TABS = { today: 'today', session: 'today', summary: 'today', log: 'log', test: 'test', settings: 'settings', pttest: 'test', skill: 'today', interval: 'today' };
 const FOCUS = new Set(['session', 'pttest', 'skill', 'interval']); // 하단 탭 숨기고 화면 켜둠
 
 function route() {
@@ -41,7 +40,7 @@ function render() {
   const views = {
     setup: renderSetup, today: renderToday, session: renderSession, summary: (el) => renderSummary(el, r.arg),
     log: renderLog, test: renderTest, settings: renderSettings,
-    pttest: renderPtTest, skill: renderSkill, interval: renderInterval, body: renderBody,
+    pttest: renderPtTest, skill: renderSkill, interval: renderInterval,
   };
   (views[r.name] ?? renderToday)(view);
 }

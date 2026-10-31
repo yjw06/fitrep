@@ -33,7 +33,7 @@ test('종목 이력·주간 진행', () => {
   assert.deepEqual(judgeHistory(sessions, 'backSquat'), []);
 });
 
-test('v1 → v2 마이그레이션: 기존 기록 유지 + 2단계 필드', () => {
+test('v1 → 현재 마이그레이션: 기존 기록 유지 + 2단계 필드', () => {
   const v1 = {
     schema: 1, setupDone: true,
     settings: { callsign: 'EAGLE', startDate: '2026-11-02', goals: { pushups: 72, situps: 86, run3kSec: 750 } },
@@ -43,7 +43,7 @@ test('v1 → v2 마이그레이션: 기존 기록 유지 + 2단계 필드', () =
     reschedule: { '2026-11-02': { passes: [{ date: '2026-11-03', reason: '당직' }] } },
   };
   const s = migrate(v1);
-  assert.equal(s.schema, 2);
+  assert.equal(s.schema, SCHEMA_VERSION);
   assert.equal(s.settings.callsign, 'EAGLE');
   assert.equal(s.settings.goals.pushups, 72);
   assert.equal(s.settings.goals.pullups, 10);
@@ -53,5 +53,30 @@ test('v1 → v2 마이그레이션: 기존 기록 유지 + 2단계 필드', () =
   assert.deepEqual(s.reschedule['2026-11-02'], { passes: [{ date: '2026-11-03', reason: '당직' }], applied: null });
   assert.deepEqual(s.skillLogs, []);
   assert.equal(s.drill, null);
-  assert.deepEqual(s.settings.proteinPresets.map((p) => p.g), [45, 31.5]);
+  assert.equal('proteinPresets' in s.settings, false);
+  assert.equal('bodyweight' in s, false);
+});
+
+test('v2 → v3 마이그레이션: 체중·단백질 저장값만 제거, 나머지 유지', () => {
+  const v2 = {
+    schema: 2, setupDone: true,
+    settings: { callsign: 'EAGLE', startDate: '2026-11-02', gymDays: [1, 2, 4, 5], proteinTarget: [120, 150], proteinPresets: [{ name: '닭가슴살 200g', g: 45 }] },
+    tests: [{ id: 't', date: '2026-11-03', pullups: 3, pushups: 72, situps: 60, mode: 'timed' }],
+    sessions: [{ id: 's', key: 'UA', date: '2026-11-02', week: 1, entries: [] }],
+    bodyweight: [{ date: '2026-11-03', kg: 70.1 }],
+    protein: { '2026-11-03': [{ name: '닭가슴살 200g', g: 45 }] },
+    intervals: [{ date: '2026-11-03', laps: [98] }],
+    skillLogs: [{ date: '2026-11-04', rank: '일병', sets: [] }],
+    reschedule: { '2026-11-02': { passes: [{ date: '2026-11-03', key: 'LA', reason: '당직' }], applied: null } },
+  };
+  const s = migrate(v2);
+  assert.equal(s.schema, 3);
+  for (const k of ['bodyweight', 'protein']) assert.equal(k in s, false, k);
+  for (const k of ['proteinTarget', 'proteinPresets']) assert.equal(k in s.settings, false, k);
+  assert.deepEqual(s.settings.gymDays, [1, 2, 4, 5]);
+  assert.equal(s.tests[0].mode, 'timed');
+  assert.equal(s.sessions.length, 1);
+  assert.equal(s.intervals[0].laps[0], 98);
+  assert.equal(s.skillLogs.length, 1);
+  assert.equal(s.reschedule['2026-11-02'].passes[0].reason, '당직');
 });

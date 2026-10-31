@@ -159,7 +159,7 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
   assert.equal(stored.targets.bench.weight, 62.5);
   assert.equal(stored.exState.negPullup.stage, 1);
-  assert.equal(stored.schema, 2);
+  assert.equal(stored.schema, 3);
 
 
   // ───────── 2단계 ─────────
@@ -167,17 +167,6 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   const st = () => page.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
   await page.locator('#callsign svg.insignia').waitFor();
   step('상단 바 계급장');
-
-  // 체중·단백질
-  await nav('#today');
-  await tid('bw').locator('button[aria-label$="증가"]').click();
-  await tid('bw-save').click();
-  await tid('protein-0').click();
-  await tid('protein-1').click();
-  assert.match(await tid('protein-total').textContent(), /76\.5 \/ 120~150g/);
-  assert.equal((await st()).bodyweight[0].kg, 70.1);
-  await shot('ration');
-  step('체중 기록 + 단백질 퀵 추가(45+31.5)');
 
   // 화요일로 이동 → 하체A 패스 → 재편성
   await page.clock.fastForward(24 * 3600_000);
@@ -266,31 +255,35 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   step('서비스 워커 등록 + 저장 상태 확인');
 
 
-  // v1 저장 데이터 → v2 마이그레이션 로드
+  // 2.0.0(schema 2) 저장 데이터 → v3 마이그레이션 로드(체중·단백질 제거, 나머지 유지)
   const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const p2 = await ctx2.newPage();
   p2.on('pageerror', (e) => errors.push(`[v1] ${e}`));
   await p2.addInitScript(() => {
     if (localStorage.getItem('fitrep')) return;
     localStorage.setItem('fitrep', JSON.stringify({
-      schema: 1, setupDone: true,
-      settings: { callsign: 'OLDTIMER', startDate: '2026-11-02', goals: { pushups: 70, situps: 80, run3kSec: 750 } },
+      schema: 2, setupDone: true,
+      settings: { callsign: 'OLDTIMER', startDate: '2026-11-02', goals: { pullups: 10, pushups: 70, situps: 80, run3kSec: 750 }, proteinTarget: [120, 150], proteinPresets: [{ name: '닭가슴살 200g', g: 45 }] },
       tests: [{ id: 'x', date: '2026-11-01', pullups: 7, pushups: 50, situps: 60, mode: 'manual' }],
       sessions: [{ id: 's1', key: 'UA', date: '2026-11-02', week: 1, startedAt: 1, endedAt: 2, entries: [{ slotId: 'UA2', ex: 'bench', presc: { sets: 4, reps: [5, 6] }, sets: [{ w: 60, reps: 6, rir: 2 }] }], results: [] }],
       targets: { bench: { weight: 62.5 } }, exState: {}, missions: {}, reschedule: {},
+      bodyweight: [{ date: '2026-11-02', kg: 70.1 }], protein: { '2026-11-02': [{ name: '닭가슴살 200g', g: 45 }] },
+      intervals: [], skillLogs: [], drill: null,
     }));
   });
   await p2.goto(BASE);
   await p2.waitForSelector('[data-testid=session-card]');
   assert.match(await p2.textContent('#callsign'), /OLDTIMER/);
   const m = await p2.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
-  assert.equal(m.schema, 2);
+  assert.equal(m.schema, 3);
   assert.equal(m.sessions.length, 1);
-  assert.equal(m.settings.goals.pullups, 10);
+  assert.equal(m.targets.bench.weight, 62.5);
+  assert.equal('bodyweight' in m || 'protein' in m || 'proteinPresets' in m.settings, false);
+  assert.equal(await p2.locator('[data-testid=ration-card]').count(), 0);
   await p2.evaluate(() => { location.hash = '#test'; });
   await p2.waitForSelector('[data-testid=rank-card]:has-text("상병")');
   await ctx2.close();
-  step('v1 데이터 → v2 마이그레이션(기록 유지, 상병 판정)');
+  step('2.0.0 데이터 → v3 마이그레이션(체중·단백질 제거, 기록 유지, 상병 판정)');
 
   assert.deepEqual(errors, []);
   console.log('\nSMOKE OK');

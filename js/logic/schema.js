@@ -1,7 +1,7 @@
 // 저장 스키마 + 마이그레이션 (순수 함수). store.js가 localStorage 입출력을 맡는다.
-// 2단계 필드(bodyweight, protein, intervals, reschedule 등)도 미리 자리를 잡아 둔다.
+// 2단계 필드(intervals, reschedule, skillLogs, drill 등)도 여기서 정의한다.
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const APP_ID = 'fitrep';
 
 export function defaultSettings() {
@@ -22,8 +22,6 @@ export function defaultSettings() {
     // 2단계
     testAnchorDate: null,       // 체력 검정 기준일(일요일). null이면 시작 주 일요일
     gymDays: [1, 2, 3, 4, 5, 6],
-    proteinTarget: [120, 150],
-    proteinPresets: [{ name: '닭가슴살 200g', g: 45 }, { name: 'WPI 1.5스쿱', g: 31.5 }],
   };
 }
 
@@ -39,8 +37,6 @@ export function defaultState() {
     exState: {},      // { negPullup: { stage } }
     missions: {},     // { 'YYYY-MM-DD': { done: true, at } }
     // 2단계
-    bodyweight: [],   // [{ date, kg }]
-    protein: {},      // { 'YYYY-MM-DD': [{ name, g, at }] }
     intervals: [],    // [{ date, laps:[sec] }]
     reschedule: {},   // { mondayStr: { passes:[{ date, key, reason, at }], applied:{ from, assign:{date:key}, skip:[key] }|null } }
     skillLogs: [],    // [{ date, rank, sets:[{ label, reps?, sec? }] }]
@@ -75,6 +71,12 @@ const MIGRATIONS = {
       drill: null,
     };
   },
+  // v2 → v3: 체중·단백질 기능 삭제(짬밥 식사라 정확한 계체·단백질 계산 불가) → 관련 저장값 제거
+  2: (s) => {
+    const { bodyweight, protein, ...rest } = s;
+    const { proteinTarget, proteinPresets, ...settings } = s.settings ?? {};
+    return { ...rest, settings };
+  },
 };
 
 export function migrate(raw) {
@@ -90,7 +92,7 @@ export function migrate(raw) {
   }
   const def = defaultState();
   const out = deepFill(def, s);
-  for (const k of ['tests', 'sessions', 'bodyweight', 'intervals', 'skillLogs']) if (!Array.isArray(out[k])) out[k] = [];
+  for (const k of ['tests', 'sessions', 'intervals', 'skillLogs']) if (!Array.isArray(out[k])) out[k] = [];
   out.schema = SCHEMA_VERSION;
   return out;
 }
