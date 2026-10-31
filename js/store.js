@@ -9,7 +9,9 @@ export let loadError = null;
 export function load() {
   const raw = localStorage.getItem(KEY);
   try {
-    state = migrate(raw ? JSON.parse(raw) : null);
+    const parsed = raw ? JSON.parse(raw) : null;
+    state = migrate(parsed);
+    if (parsed && parsed.schema !== state.schema) save(); // 마이그레이션 결과 바로 저장
   } catch (e) {
     loadError = e;
     // 읽을 수 없는 데이터는 지우지 않고 옆에 보관

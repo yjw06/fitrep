@@ -30,8 +30,9 @@ function watch(worker) {
 export async function initSW() {
   if (!('serviceWorker' in navigator)) return;
   let reloading = false;
+  const hadController = !!navigator.serviceWorker.controller; // 첫 설치(claim)는 새로고침하지 않음
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return;
+    if (reloading || !hadController) return;
     reloading = true;
     location.reload();
   });
