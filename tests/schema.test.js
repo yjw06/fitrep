@@ -32,3 +32,26 @@ test('종목 이력·주간 진행', () => {
   assert.deepEqual([...weekDone(sessions, '2026-11-12')].sort(), ['LA', 'UA']);
   assert.deepEqual(judgeHistory(sessions, 'backSquat'), []);
 });
+
+test('v1 → v2 마이그레이션: 기존 기록 유지 + 2단계 필드', () => {
+  const v1 = {
+    schema: 1, setupDone: true,
+    settings: { callsign: 'EAGLE', startDate: '2026-11-02', goals: { pushups: 72, situps: 86, run3kSec: 750 } },
+    tests: [{ id: 't', date: '2026-10-31', pullups: 2, pushups: 50, situps: 60, mode: 'manual' }],
+    sessions: [{ id: 's', key: 'UA', date: '2026-11-02', week: 1, entries: [{ ex: 'bench', sets: [{ w: 60, reps: 6 }] }] }],
+    targets: { bench: { weight: 62.5 } }, exState: { negPullup: { stage: 1 } },
+    reschedule: { '2026-11-02': { passes: [{ date: '2026-11-03', reason: '당직' }] } },
+  };
+  const s = migrate(v1);
+  assert.equal(s.schema, 2);
+  assert.equal(s.settings.callsign, 'EAGLE');
+  assert.equal(s.settings.goals.pushups, 72);
+  assert.equal(s.settings.goals.pullups, 10);
+  assert.equal(s.sessions.length, 1);
+  assert.equal(s.targets.bench.weight, 62.5);
+  assert.equal(s.exState.negPullup.stage, 1);
+  assert.deepEqual(s.reschedule['2026-11-02'], { passes: [{ date: '2026-11-03', reason: '당직' }], applied: null });
+  assert.deepEqual(s.skillLogs, []);
+  assert.equal(s.drill, null);
+  assert.deepEqual(s.settings.proteinPresets.map((p) => p.g), [45, 31.5]);
+});

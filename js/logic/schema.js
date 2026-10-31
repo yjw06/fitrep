@@ -1,7 +1,7 @@
 // 저장 스키마 + 마이그레이션 (순수 함수). store.js가 localStorage 입출력을 맡는다.
 // 2단계 필드(bodyweight, protein, intervals, reschedule 등)도 미리 자리를 잡아 둔다.
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const APP_ID = 'fitrep';
 
 export function defaultSettings() {
@@ -16,11 +16,11 @@ export function defaultSettings() {
     plates: [20, 15, 10, 5, 2.5, 1.25],
     inc: { mainUpper: 2.5, mainLower: 5, barbell: 2.5, smith: 2.5, dumbbell: 2, machine: 5, cable: 5, assist: 5 },
     incOverride: {},            // { exId: kg } 종목별 증가폭
-    goals: { pushups: null, situps: null, run3kSec: 750 },
+    goals: { pullups: 10, pushups: null, situps: null, run3kSec: 750 },
     shortcut: { enabled: false, name: '시계 타이머 시작' },
     alts: {},                   // { slotId: exId } 마지막으로 고른 대체 종목
     // 2단계
-    testAnchorDate: null,       // 체력 검정 기준일(일요일)
+    testAnchorDate: null,       // 체력 검정 기준일(일요일). null이면 시작 주 일요일
     gymDays: [1, 2, 3, 4, 5, 6],
     proteinTarget: [120, 150],
     proteinPresets: [{ name: '닭가슴살 200g', g: 45 }, { name: 'WPI 1.5스쿱', g: 31.5 }],
@@ -42,7 +42,9 @@ export function defaultState() {
     bodyweight: [],   // [{ date, kg }]
     protein: {},      // { 'YYYY-MM-DD': [{ name, g, at }] }
     intervals: [],    // [{ date, laps:[sec] }]
-    reschedule: {},   // { mondayStr: { passes:[{date, reason}], plan:{ date: key } } }
+    reschedule: {},   // { mondayStr: { passes:[{ date, key, reason, at }], applied:{ from, assign:{date:key}, skip:[key] }|null } }
+    skillLogs: [],    // [{ date, rank, sets:[{ label, reps?, sec? }] }]
+    drill: null,      // 진행 중 드릴(pttest|interval|skill) — 시각 저장으로 복원
   };
 }
 
@@ -59,7 +61,20 @@ function deepFill(base, src) {
 
 // 버전별 마이그레이션: MIGRATIONS[n]은 schema n → n+1
 const MIGRATIONS = {
-  // 0: (s) => ({ ...s, schema: 1 }),
+  // v1 → v2: 2단계(턱걸이 목표, 스킬 기록, 드릴 상태, 재편성 구조)
+  1: (s) => {
+    const resched = {};
+    for (const [mon, r] of Object.entries(s.reschedule ?? {})) {
+      resched[mon] = { passes: r?.passes ?? [], applied: r?.applied ?? null };
+    }
+    return {
+      ...s,
+      settings: { ...s.settings, goals: { pullups: 10, ...(s.settings?.goals ?? {}) } },
+      reschedule: resched,
+      skillLogs: Array.isArray(s.skillLogs) ? s.skillLogs : [],
+      drill: null,
+    };
+  },
 };
 
 export function migrate(raw) {
@@ -75,7 +90,7 @@ export function migrate(raw) {
   }
   const def = defaultState();
   const out = deepFill(def, s);
-  for (const k of ['tests', 'sessions', 'bodyweight', 'intervals']) if (!Array.isArray(out[k])) out[k] = [];
+  for (const k of ['tests', 'sessions', 'bodyweight', 'intervals', 'skillLogs']) if (!Array.isArray(out[k])) out[k] = [];
   out.schema = SCHEMA_VERSION;
   return out;
 }
