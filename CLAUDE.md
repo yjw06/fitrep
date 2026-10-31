@@ -119,7 +119,27 @@
   - 세트 완료 후 같은 슬롯에 남은 세트가 있으면 그 슬롯 유지, 없으면 기본 순서로
   - 대체 종목은 첫 세트 전까지만 교체 가능, 슬롯별 마지막 선택 기억(settings.alts)
   - 일지에서 세트를 고쳐도 이미 정해진 다음 목표는 다시 계산하지 않음
-- 테스트: `npm test`(node:test 35개) · `npm run smoke`(로컬 서버 /fitrep/ + 헤드리스 Chromium, 설정→세션→휴식→복원→워밍업→가드→판정→일지→검정→테마→SW)
+- 테스트(당시): `npm test`(node:test 35개) · `npm run smoke`(로컬 서버 /fitrep/ + 헤드리스 Chromium, 설정→세션→휴식→복원→워밍업→가드→판정→일지→검정→테마→SW)
 - 배포 규칙: 배포마다 `sw.js` CACHE_VERSION과 `js/version.js`를 함께 올림(tests/shell.test.js가 일치·캐시 목록 누락 검사)
 - 라이선스 추가: LICENSE(MIT), fonts/OFL.txt(fontsource 원문), fonts/SOURCE.md, package.json license, README 「라이선스」
-- 다음(2단계): 체력 검정 2분 모드·그래프, 턱걸이 계급(UA1·스킬 데이 교체), 작전 재편성, 체중·단백질, 400m 인터벌 코치
+
+### 2026-10-31 — 2단계 구현 완료 · 앱 버전 2.0.0 · 스키마 v2
+- 완료: 2단계 1~5 전부. 명세 항목 ↔ 파일
+  - 체력 검정 → `js/logic/pttest.js`, `js/ui/pttest.js`(2분 모드), `js/ui/test.js`(계급·그래프·진행 바), 금일 임무 검정일 카드
+  - 턱걸이 계급 → `js/logic/rank.js`, `data/program.js` PULLUP_RANKS·SKILL_PLANS, `plan.js`(UA1 교체), `js/ui/skill.js`(스킬 가이드)
+  - 작전 재편성 → `js/logic/reschedule.js`, `js/ui/reschedule.js`
+  - 체중·단백질 → `js/logic/body.js`, `js/ui/body.js`(금일 임무 카드 + `#body`)
+  - 400m 인터벌 → `js/logic/interval.js`, `js/ui/interval.js`
+- 스키마 v2(마이그레이션 `MIGRATIONS[1]`): goals.pullups(기본 10), skillLogs, drill(진행 중 2분 모드·스킬·인터벌 — 시각 저장으로 복원), reschedule[월요일] = { passes, applied:{ from, assign, skip } }.
+  기존 기록·목표·설정은 유지, 로드 직후 v2로 저장.
+- 해석해서 정한 것
+  - 검정 기준일 미설정이면 시작 주의 일요일(시작일+6). 설정에서 일요일만 선택 가능
+  - 2분 모드 목표 = 설정 목표(없으면 최근 최대). 결과는 같은 날짜 검정 기록에 합침(mode 'timed')
+  - 계급: 0~2개도 이병. 상병 "2개 남기고" = 반복 목표 최대−2(최소 1). 일병 클러스터·상병 정자세는 맨몸(판정은 윗끝 안내만), 병장 가중은 덤벨 증가폭으로 판정
+  - 스킬 데이: 일병 = 사다리 1-2-3 ×2, 상병·병장 = 1-2-3-4 ×2(사다리만), 이병 = 기본 4단계
+  - 재편성: 패스한 날·지난 날은 제외, 이번 주 이미 한 세션은 고정. "하체A·B 연달아 금지" = 날짜순으로 사이에 다른 세션이 있어야 함. 차이 = 원래 요일과의 일수 합
+  - 체중 제안: 최근 7일 평균 vs 14일 전 7일 평균, 각 3일 이상 기록 있을 때만 판단
+  - 인터벌: 200m 음성 = 목표 페이스의 50% 시점, 걷기 끝나면 자동 출발(앱이 늦게 깨어나도 걷기 종료 시각 기준), 중단해도 랩 저장
+- 고친 버그: 첫 SW 설치 때 controllerchange로 한 번 새로고침되던 문제, 마이그레이션이 다음 저장 전까지 디스크에 반영되지 않던 문제
+- 테스트: `npm test` 55개 · `npm run smoke`에 2단계 흐름(체중·단백질 → 패스·재편성 → 2분 모드 → 계급 승급 → 스킬 → 인터벌 → 검정일) + v1→v2 로드 추가
+- 다음: (명세 범위 완료) 실기기 피드백 반영
