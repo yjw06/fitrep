@@ -1,0 +1,12 @@
+{
+  "name": "fitrep",
+  "private": true,
+  "type": "module",
+  "description": "FITREP — 주 4회 상하체 루틴 PWA (빌드 없음)",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "smoke": "node tests/smoke.mjs",
+    "serve": "node tools/serve.mjs",
+    "icons": "node tools/make-icons.mjs"
+  }
+}
