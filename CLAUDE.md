@@ -12,6 +12,7 @@
 - 세션 중 Screen Wake Lock(visibilitychange 시 재요청). 알림음은 Web Audio(첫 탭에서 unlock, 지원 시 navigator.audioSession.type="playback"), 음성은 speechSynthesis ko-KR. 진동 API 금지(iOS 미지원)
 - 시간대 Asia/Seoul, 주 시작 월요일. UI 문구는 한국어(영문 군대식 라벨 제외)
 - public 레포 → 이름·체중·기록 같은 개인 데이터는 코드에 넣지 말고 전부 설정/로컬 저장
+- 라이선스: 코드 MIT(루트 LICENSE). 서드파티 파일(폰트·아이콘 등)을 넣을 땐 원본 라이선스 파일(직접 작성 금지, 배포본 원문 복사)과 출처(패키지·버전·URL)를 같은 폴더에 같이 넣을 것 — 예: fonts/OFL.txt + fonts/SOURCE.md
 
 ## UI — 약간 밀리터리 (과하지 않게)
 - 다크(야간) 기본 + 라이트(주간, 카키 종이). 위장무늬 배경 금지
@@ -120,4 +121,5 @@
   - 일지에서 세트를 고쳐도 이미 정해진 다음 목표는 다시 계산하지 않음
 - 테스트: `npm test`(node:test 35개) · `npm run smoke`(로컬 서버 /fitrep/ + 헤드리스 Chromium, 설정→세션→휴식→복원→워밍업→가드→판정→일지→검정→테마→SW)
 - 배포 규칙: 배포마다 `sw.js` CACHE_VERSION과 `js/version.js`를 함께 올림(tests/shell.test.js가 일치·캐시 목록 누락 검사)
+- 라이선스 추가: LICENSE(MIT), fonts/OFL.txt(fontsource 원문), fonts/SOURCE.md, package.json license, README 「라이선스」
 - 다음(2단계): 체력 검정 2분 모드·그래프, 턱걸이 계급(UA1·스킬 데이 교체), 작전 재편성, 체중·단백질, 400m 인터벌 코치

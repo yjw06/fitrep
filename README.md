@@ -46,4 +46,7 @@ iOS는 앱이 백그라운드에 있으면 웹 앱 소리를 내지 못합니다
 - 로컬 실행: `npm run serve` → http://localhost:8080/fitrep/
 - 아이콘 재생성: `npm run icons` (`icons/icon.svg` → PNG 180/192/512)
 - **배포할 때마다 `sw.js`의 `CACHE_VERSION`과 `js/version.js`를 같이 올리기** → 앱에 "업데이트" 배너가 뜸
-- 폰트: Saira Stencil One (SIL OFL 1.1, `fonts/OFL.txt`)
+
+## 라이선스
+- 코드: [MIT](LICENSE) — Copyright (c) 2026 yjw06
+- 폰트: Saira Stencil One — [SIL Open Font License 1.1](fonts/OFL.txt) (출처: [`fonts/SOURCE.md`](fonts/SOURCE.md))
