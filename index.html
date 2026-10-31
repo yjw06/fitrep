@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FITREP</title>
+  <meta name="description" content="주 4회 상하체 루틴 운동 기록·코치">
+  <meta name="theme-color" content="#14170F">
+  <meta name="color-scheme" content="dark light">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FITREP">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="preload" href="fonts/saira-stencil-one-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // 첫 페인트 전에 테마 적용(깜빡임 방지)
+    try { var t = JSON.parse(localStorage.getItem('fitrep') || '{}').settings; if (t && t.theme) document.documentElement.dataset.theme = t.theme; } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="callsign stencil" id="callsign">FITREP</div>
+    <div class="dtg mono" id="dtg"></div>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+  <main id="view" class="view" tabindex="-1"></main>
+  <nav class="tabbar" id="tabbar" aria-label="하단 탭">
+    <a href="#today" data-tab="today"><span class="tab-en">MISSION</span><span>임무</span></a>
+    <a href="#log" data-tab="log"><span class="tab-en">LOG</span><span>일지</span></a>
+    <a href="#test" data-tab="test"><span class="tab-en">PT TEST</span><span>검정</span></a>
+    <a href="#settings" data-tab="settings"><span class="tab-en">CONFIG</span><span>설정</span></a>
+  </nav>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <noscript>JavaScript가 필요합니다.</noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

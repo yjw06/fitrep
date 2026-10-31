@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#4B5320"/>
+  <g fill="none" stroke="#D9CFA8" stroke-width="14" stroke-linecap="square">
+    <path d="M60 130V60h70M382 60h70v70M452 382v70h-70M130 452H60v-70"/>
+  </g>
+  <text x="256" y="258" text-anchor="middle" dominant-baseline="central"
+        font-family="'Saira Stencil One', 'Arial Black', sans-serif" font-size="250" letter-spacing="6"
+        fill="#D9CFA8">FR</text>
+</svg>
