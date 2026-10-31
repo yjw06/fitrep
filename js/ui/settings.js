@@ -1,7 +1,8 @@
 // 설정: 기본·목표·장비·증가폭·소리·단축어·백업
 import { h, mount, label, stepper, toast } from './dom.js';
 import { state, save, replace, exportBackup, importBackupFile, isPersisted, requestPersist } from '../store.js';
-import { dowOf, fmtClock, parseClock, isDateStr } from '../logic/dates.js';
+import { dowOf, dowKo, fmtClock, parseClock, isDateStr } from '../logic/dates.js';
+import { testAnchor } from '../logic/pttest.js';
 import { defaultState } from '../logic/schema.js';
 import { incrementFor } from '../logic/progression.js';
 import { fmtKg } from '../logic/num.js';
@@ -33,7 +34,7 @@ export function renderSettings(root) {
     h('div', { style: 'margin:4px 2px 10px' }, label('CONFIG'), h('div', { style: 'font-size:20px;font-weight:700' }, '설정')),
 
     h('div', { class: 'card' }, label('BASIC'),
-      field('콜사인', h('input', { value: s.callsign, maxlength: 16, onchange: (e) => { s.callsign = e.target.value.trim() || s.callsign; commit('저장'); document.getElementById('callsign').textContent = s.callsign; } })),
+      field('콜사인', h('input', { value: s.callsign, maxlength: 16, onchange: (e) => { s.callsign = e.target.value.trim() || s.callsign; commit('저장'); rerender(); } })),
       field('시작일(월요일) — 주차 기준', h('input', { type: 'date', value: s.startDate ?? '', onchange: (e) => {
         const v = e.target.value;
         if (!isDateStr(v) || dowOf(v) !== 1) { e.target.value = s.startDate ?? ''; return toast('월요일만 선택할 수 있습니다'); }
@@ -47,7 +48,8 @@ export function renderSettings(root) {
           h('span', { class: 'en' }, t === 'dark' ? 'NIGHT' : 'DAY'), t === 'dark' ? '야간(다크)' : '주간(라이트)')))),
 
     h('div', { class: 'card' }, label('OBJECTIVE'),
-      h('div', { class: 'grid3' },
+      h('div', { class: 'grid2' },
+        field('턱걸이 목표', h('input', { type: 'number', inputmode: 'numeric', value: s.goals.pullups ?? '', onchange: (e) => { s.goals.pullups = e.target.value === '' ? null : +e.target.value; commit('저장'); } })),
         field('팔굽 목표', h('input', { type: 'number', inputmode: 'numeric', value: s.goals.pushups ?? '', onchange: (e) => { s.goals.pushups = e.target.value === '' ? null : +e.target.value; commit('저장'); } })),
         field('윗몸 목표', h('input', { type: 'number', inputmode: 'numeric', value: s.goals.situps ?? '', onchange: (e) => { s.goals.situps = e.target.value === '' ? null : +e.target.value; commit('저장'); } })),
         field('3km 목표', h('input', { inputmode: 'numeric', value: fmtClock(s.goals.run3kSec), onchange: (e) => {
@@ -56,6 +58,38 @@ export function renderSettings(root) {
           s.goals.run3kSec = v; commit('저장');
         } }))),
       h('div', { class: 'muted small' }, `400m 목표 페이스 = 3km 목표 ÷ 7.5 = ${fmtClock(Math.round(s.goals.run3kSec / 7.5))}`)),
+
+    h('div', { class: 'card' }, label('SCHEDULE'),
+      field('체력 검정 기준일(일요일) — 14일마다', h('input', { type: 'date', value: testAnchor(s) ?? '', 'data-testid': 'anchor', onchange: (e) => {
+        const v = e.target.value;
+        if (!isDateStr(v) || dowOf(v) !== 7) { e.target.value = testAnchor(s) ?? ''; return toast('일요일만 선택할 수 있습니다'); }
+        s.testAnchorDate = v; commit('저장');
+      } })),
+      h('div', { class: 'muted small' }, s.testAnchorDate ? '' : '미설정 — 시작 주의 일요일 기준'),
+      h('div', { class: 'field', style: 'margin-top:10px' }, h('span', null, '헬스장 가능 요일(작전 재편성)'),
+        h('div', { class: 'chips', style: 'grid-template-columns:repeat(7,1fr)' }, [1, 2, 3, 4, 5, 6, 7].map((d) => h('button', {
+          class: `chip${s.gymDays.includes(d) ? ' on' : ''}`, 'aria-pressed': String(s.gymDays.includes(d)), onclick: () => {
+            s.gymDays = s.gymDays.includes(d) ? s.gymDays.filter((x) => x !== d) : [...s.gymDays, d].sort();
+            commit(); rerender();
+          } }, dowKo(d)))))),
+
+    h('div', { class: 'card' }, label('RATION'),
+      h('div', { class: 'grid2' },
+        h('div', { class: 'field' }, h('span', null, '단백질 목표 하한'), stepper({ value: s.proteinTarget[0], step: 5, min: 0, max: 400, unit: 'g', label: '하한', onChange: (v) => { s.proteinTarget = [v, Math.max(v, s.proteinTarget[1])]; commit(); } })),
+        h('div', { class: 'field' }, h('span', null, '단백질 목표 상한'), stepper({ value: s.proteinTarget[1], step: 5, min: 0, max: 400, unit: 'g', label: '상한', onChange: (v) => { s.proteinTarget = [Math.min(v, s.proteinTarget[0]), v]; commit(); } }))),
+      h('div', { class: 'field' }, h('span', null, '단백질 퀵 추가 프리셋'),
+        s.proteinPresets.map((p, i) => h('div', { class: 'row', style: 'margin-bottom:6px' },
+          h('input', { class: 'grow', value: p.name, style: 'min-height:48px;padding:0 10px;border:1px solid var(--line);background:var(--sunk)', onchange: (e) => { p.name = e.target.value.trim() || p.name; commit('저장'); } }),
+          h('input', { type: 'number', inputmode: 'decimal', value: p.g, style: 'width:80px;min-height:48px;padding:0 8px;border:1px solid var(--line);background:var(--sunk)', onchange: (e) => { if (+e.target.value > 0) { p.g = +e.target.value; commit('저장'); } } }),
+          h('span', { class: 'small' }, 'g'),
+          h('button', { class: 'btn sm danger', 'aria-label': '삭제', onclick: () => { s.proteinPresets.splice(i, 1); commit(); rerender(); } }, '✕'))),
+        h('button', { class: 'btn sm block', onclick: () => {
+          const name = prompt('프리셋 이름(예: 계란 2개)');
+          if (!name) return;
+          const g = +prompt('단백질(g)', '12');
+          if (!(g > 0)) return toast('g을 숫자로 입력하세요');
+          s.proteinPresets.push({ name: name.trim(), g }); commit(); rerender();
+        } }, '+ 프리셋 추가'))),
 
     h('div', { class: 'card' }, label('BAR & PLATES'),
       h('div', { class: 'field' }, h('span', null, '봉 무게'), stepper({ value: s.bar, step: 2.5, min: 0, max: 30, unit: 'kg', label: '봉', onChange: (v) => { s.bar = v; commit(); } })),

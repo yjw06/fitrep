@@ -159,12 +159,138 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
   assert.equal(stored.targets.bench.weight, 62.5);
   assert.equal(stored.exState.negPullup.stage, 1);
-  assert.equal(stored.schema, 1);
+  assert.equal(stored.schema, 2);
+
+
+  // ───────── 2단계 ─────────
+  const nav = async (hash) => { await page.evaluate((h) => { location.hash = h; }, hash); await page.waitForTimeout(100); };
+  const st = () => page.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
+  await page.locator('#callsign svg.insignia').waitFor();
+  step('상단 바 계급장');
+
+  // 체중·단백질
+  await nav('#today');
+  await tid('bw').locator('button[aria-label$="증가"]').click();
+  await tid('bw-save').click();
+  await tid('protein-0').click();
+  await tid('protein-1').click();
+  assert.match(await tid('protein-total').textContent(), /76\.5 \/ 120~150g/);
+  assert.equal((await st()).bodyweight[0].kg, 70.1);
+  await shot('ration');
+  step('체중 기록 + 단백질 퀵 추가(45+31.5)');
+
+  // 화요일로 이동 → 하체A 패스 → 재편성
+  await page.clock.fastForward(24 * 3600_000);
+  await nav('#log'); await nav('#today');
+  assert.match(await tid('session-card').textContent(), /하체A/);
+  await tid('pass').click();
+  await tid('pass-dialog').locator('button', { hasText: '당직' }).click();
+  await tid('resched-card').waitFor();
+  await shot('reschedule');
+  const opts = await page.locator('[data-testid^="resched-opt-"]').count();
+  assert.ok(opts >= 1 && opts <= 3);
+  await tid('resched-apply-0').click();
+  await tid('resched-applied').waitFor();
+  assert.match(await tid('session-card').textContent(), /패스 — 당직/);
+  const rs = Object.values((await st()).reschedule)[0];
+  assert.deepEqual(rs.applied.assign, { '2026-11-04': 'LA', '2026-11-05': 'UB', '2026-11-06': 'LB' });
+  step('패스(당직) → 재배치안 최대 3개 → 적용(수 하체A·목 상체B·금 하체B)');
+
+  // 체력 검정 2분 모드
+  await page.click('#tabbar a[data-tab=test]');
+  assert.match(await tid('rank-card').textContent(), /이병/);
+  await tid('pt-pushups').click();
+  await page.waitForURL(/#pttest/);
+  await tid('pt-run').waitFor();
+  await page.clock.fastForward(3_500);
+  await page.clock.fastForward(31_000);
+  assert.match(await page.textContent('#pt-target'), /^1[89]$/); // 목표 72 → 30초 누적 18
+  await shot('pt-run');
+  await page.clock.fastForward(90_000);
+  await tid('pt-result').waitFor();
+  await tid('pt-save').click();
+  await page.waitForURL(/#test/);
+  let tests = (await st()).tests;
+  assert.equal(tests.find((t) => t.date === '2026-11-03').pushups, 72);
+  assert.equal(tests.find((t) => t.date === '2026-11-03').mode, 'timed');
+  step('2분 모드: 카운트다운 → 누적 목표 → 결과 저장(timed)');
+
+  // 턱걸이 3개 → 일병 → 상체A 1번 클러스터
+  await tid('t-pull').locator('button[aria-label$="증가"]').click();
+  await tid('t-save').click();
+  await page.waitForSelector('[data-testid=rank-card]:has-text("일병")');
+  assert.equal((await st()).tests.filter((t) => t.date === '2026-11-03').length, 1);
+  await shot('test-tab');
+  await nav('#today');
+  await tid('pick-UA').click();
+  assert.match(await tid('session-card').textContent(), /클러스터 턱걸이 6×1~2/);
+  step('계급 승급(이병→일병) → 상체A 1번 클러스터로 교체');
+
+  // 스킬 데이 가이드(일병 → 사다리 1-2-3 ×2)
+  await nav('#skill');
+  await tid('skill-card').waitFor();
+  assert.equal(await tid('skill-card').locator('.skill-set').count(), 6);
+  for (let i = 0; i < 6; i++) await tid('skill-done').click();
+  await shot('skill');
+  await tid('skill-finish').click();
+  await page.waitForURL(/#today/);
+  assert.equal((await st()).skillLogs[0].sets.length, 6);
+  step('스킬 가이드: 사다리 6세트 → 저장');
+
+  // 400m 인터벌 코치
+  await nav('#interval');
+  await tid('iv-go').click();
+  await tid('iv-card').waitFor();
+  await page.clock.fastForward(98_000);
+  await tid('iv-lap').click();
+  assert.match(await tid('iv-card').textContent(), /WALK/);
+  await page.clock.fastForward(91_000);
+  await page.waitForSelector('[data-testid=iv-card]:has-text("RUN")');
+  assert.match(await page.textContent('body'), /2 \/ 6회/);
+  await shot('interval');
+  await page.locator('button', { hasText: '중단' }).click();
+  await page.waitForURL(/#today/);
+  assert.equal((await st()).intervals[0].laps.length, 1);
+  step('인터벌: 랩 → 90초 걷기 → 2회차 자동 출발 → 중단 시 랩 저장');
+
+  // 일요일 = 체력 검정일(기준일 미설정 → 시작 주 일요일 11/8)
+  await page.clock.fastForward(5 * 24 * 3600_000);
+  await nav('#log'); await nav('#today');
+  await tid('testday-card').waitFor();
+  await shot('testday');
+  step('일요일 홈 검정 카드');
 
   // 서비스 워커 등록
   const sw = await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()));
   assert.ok(sw, 'SW 등록');
   step('서비스 워커 등록 + 저장 상태 확인');
+
+
+  // v1 저장 데이터 → v2 마이그레이션 로드
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const p2 = await ctx2.newPage();
+  p2.on('pageerror', (e) => errors.push(`[v1] ${e}`));
+  await p2.addInitScript(() => {
+    if (localStorage.getItem('fitrep')) return;
+    localStorage.setItem('fitrep', JSON.stringify({
+      schema: 1, setupDone: true,
+      settings: { callsign: 'OLDTIMER', startDate: '2026-11-02', goals: { pushups: 70, situps: 80, run3kSec: 750 } },
+      tests: [{ id: 'x', date: '2026-11-01', pullups: 7, pushups: 50, situps: 60, mode: 'manual' }],
+      sessions: [{ id: 's1', key: 'UA', date: '2026-11-02', week: 1, startedAt: 1, endedAt: 2, entries: [{ slotId: 'UA2', ex: 'bench', presc: { sets: 4, reps: [5, 6] }, sets: [{ w: 60, reps: 6, rir: 2 }] }], results: [] }],
+      targets: { bench: { weight: 62.5 } }, exState: {}, missions: {}, reschedule: {},
+    }));
+  });
+  await p2.goto(BASE);
+  await p2.waitForSelector('[data-testid=session-card]');
+  assert.match(await p2.textContent('#callsign'), /OLDTIMER/);
+  const m = await p2.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
+  assert.equal(m.schema, 2);
+  assert.equal(m.sessions.length, 1);
+  assert.equal(m.settings.goals.pullups, 10);
+  await p2.evaluate(() => { location.hash = '#test'; });
+  await p2.waitForSelector('[data-testid=rank-card]:has-text("상병")');
+  await ctx2.close();
+  step('v1 데이터 → v2 마이그레이션(기록 유지, 상병 판정)');
 
   assert.deepEqual(errors, []);
   console.log('\nSMOKE OK');
