@@ -1,14 +1,14 @@
 // 세션 모드: 기록 · 휴식 타이머 · 워밍업 · 60분 가드 · 종료/판정
 import { h, mount, label, stepper, rirPicker, toast, $ } from './dom.js';
 import { state, save } from '../store.js';
-import { buildPlan, buildSteps, nextStepIndex, isStepDone, remainingSec, guard, trimTarget, effSets } from '../logic/plan.js';
+import { buildSteps, nextStepIndex, isStepDone, remainingSec, guard, trimTarget, effSets } from '../logic/plan.js';
 import { judgeExercise } from '../logic/progression.js';
 import { warmupSets } from '../logic/warmup.js';
 import { lastPerformance, judgeHistory } from '../logic/stats.js';
 import { fmtClock, seoulTimeStr } from '../logic/dates.js';
 import { fmtKg } from '../logic/num.js';
 import { uid } from '../logic/schema.js';
-import { P, exOf, exName, today, weekInfo, prescText, usesWeight, setText } from './common.js';
+import { P, exOf, exName, today, weekInfo, prescText, usesWeight, setText, planFor } from './common.js';
 import { unlockAudio, beep, speak, keepAwake, runShortcut } from './fx.js';
 import { go, rerender } from './nav.js';
 
@@ -27,11 +27,7 @@ export function startSession(key) {
   unlockAudio();
   const date = today();
   const wi = weekInfo(date);
-  const plan = buildPlan(P.SESSIONS[key], {
-    week: wi.week, deloadEvery: state.settings.deloadEvery,
-    negStage: state.exState.negPullup?.stage ?? 0, negStages: P.NEGATIVE_STAGES,
-    alts: state.settings.alts, exercises: P.EXERCISES,
-  });
+  const plan = planFor(key, wi);
   state.active = {
     id: uid(), key, date, week: wi.week, deload: plan.deload, startedAt: Date.now(),
     plan, trim: {}, focus: null, rest: null, warmHidden: {}, warmDone: {},

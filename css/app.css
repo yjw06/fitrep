@@ -233,3 +233,33 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 .mission-item ol { margin: 6px 0 0; padding-left: 20px; }
 .mission-item li { margin: 3px 0; }
 .kpi { font: 700 28px var(--mono); font-variant-numeric: tabular-nums; color: var(--amber); }
+
+/* ── 2단계 ── */
+.insignia rect.on { fill: var(--amber); }
+.insignia rect.off { fill: var(--line); opacity: .5; }
+.topbar .callsign { display: flex; align-items: center; gap: 8px; }
+.progress { height: 10px; background: var(--sunk); border: 1px solid var(--line); margin: 6px 0 2px; }
+.progress i { display: block; height: 100%; background: var(--od); }
+.progress i.full { background: var(--amber); }
+.progress.prot i { background: var(--amber); }
+.bigclock { font: 700 72px/1 var(--mono); font-variant-numeric: tabular-nums; text-align: center; color: var(--amber); margin: 12px 0; }
+.bigclock.walk { color: var(--accent); }
+.drill-sub { text-align: center; font-size: 18px; }
+.cue-target { text-align: center; }
+.cue-target .kpi { font-size: 44px; }
+.plan-opt { border-top: 1px dashed var(--line); padding: 10px 0; }
+.plan-opt:first-of-type { border-top: 0; }
+.plan-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin: 6px 0; text-align: center; font-size: 12px; }
+.plan-days > div { border: 1px solid var(--line); padding: 4px 0; min-height: 44px; }
+.plan-days > div.has { background: var(--od); color: #ECE8D9; border-color: var(--od); }
+.plan-days > div.moved { outline: 2px solid var(--amber); outline-offset: -2px; }
+.plan-days > div.past { opacity: .45; }
+.skill-set { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; min-height: 52px; border-top: 1px dashed var(--line); }
+.skill-set.cur { color: var(--amber); }
+.skill-set.ok { color: var(--muted); }
+.qadd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.laps { width: 100%; border-collapse: collapse; font: 15px var(--mono); font-variant-numeric: tabular-nums; }
+.laps td { padding: 6px 4px; border-bottom: 1px dashed var(--line); }
+.laps .slow { color: var(--alert); }
+.laps .fast { color: var(--amber); }
+.topbar .insignia rect.off { display: none; }

@@ -1,5 +1,6 @@
 // 체력단련 미션 계산 (순수 함수)
-import { diffDays } from './dates.js';
+import { skillPlan, skillDose } from './rank.js';
+export { isTestDay } from './pttest.js';
 
 // 항목별 최신 검정 값(날짜 내림차순으로 첫 non-null)
 export function latestTestValues(tests) {
@@ -13,21 +14,16 @@ export const sixty = (max, ratio = 0.6) => (max > 0 ? Math.max(1, Math.round(max
 // 400m 목표 페이스(초) = 목표 3km ÷ 7.5
 export const intervalPace = (goalSec, divisor = 7.5) => (goalSec > 0 ? Math.round(goalSec / divisor) : null);
 
-// 격주 일요일(기준일부터 14일 간격) — 2단계에서 사용
-export function isTestDay(dateStr, anchor) {
-  if (!anchor) return false;
-  const d = diffDays(anchor, dateStr);
-  return d >= 0 && d % 14 === 0;
-}
 
 /**
  * 요일별 미션 카드 데이터
  * @returns [{ type, title, sets?, reps?, rest?, optional?, pace?, steps?, missing? }]
  */
-export function missionsFor(dow, { tests, goals, program }) {
+// rankIdx: 턱걸이 계급(스킬 데이 계획), testDay: 격주 검정일 여부(null이면 '격주' 문구로 항상 표시)
+export function missionsFor(dow, { tests, goals, program, rankIdx = 0, testDay = null }) {
   const latest = latestTestValues(tests);
   const { CALISTHENICS, MISSION_RULES, SKILL_STEPS, SKILL_MINUTES, INTERVAL } = program;
-  return (CALISTHENICS[dow] ?? []).map((m) => {
+  return (CALISTHENICS[dow] ?? []).filter((m) => !(m.type === 'test' && testDay === false)).map((m) => {
     switch (m.type) {
       case 'situp':
       case 'pushup': {
@@ -36,7 +32,10 @@ export function missionsFor(dow, { tests, goals, program }) {
         return { type: m.type, title: rule.label, sets: rule.sets, reps: sixty(max, rule.ratio), rest: rule.rest, max, missing: max == null };
       }
       case 'skill':
-        return { type: 'skill', title: `턱걸이 스킬 ${SKILL_MINUTES}분`, steps: SKILL_STEPS, sub: '실패 전에 멈춤' };
+        return {
+          type: 'skill', title: `턱걸이 스킬 ${SKILL_MINUTES}분`, sub: `실패 전에 멈춤 · ${program.PULLUP_RANKS[rankIdx].name} 계획`,
+          steps: program.SKILL_PLANS ? skillPlan(rankIdx, program).map((s) => ({ name: s.name, dose: skillDose(s), cue: s.cue })) : SKILL_STEPS,
+        };
       case 'interval':
         return { type: 'interval', title: `400m 인터벌 × ${INTERVAL.reps}`, optional: !!m.optional, pace: intervalPace(goals.run3kSec, INTERVAL.divisor), walk: INTERVAL.walkSec };
       case 'run':
@@ -44,7 +43,7 @@ export function missionsFor(dow, { tests, goals, program }) {
       case 'rest':
         return { type: 'rest', title: '완전 휴식' };
       case 'test':
-        return { type: 'test', title: '(격주) 체력 검정', sub: '정자세 턱걸이 최대 · 팔굽 2분 · 윗몸 2분' };
+        return { type: 'test', title: testDay ? '체력 검정일' : '(격주) 체력 검정', sub: '정자세 턱걸이 최대 · 팔굽 2분 · 윗몸 2분', due: !!testDay };
       default:
         return { type: m.type, title: m.type };
     }

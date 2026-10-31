@@ -1,5 +1,6 @@
 // 세션 계획: 처방 계산, 세트 순서(슈퍼세트 A→B 후 휴식), 60분 가드 (순수 함수)
 import { isDeloadWeek } from './dates.js';
+import { ua1Item } from './rank.js';
 
 export const restMid = ([a, b]) => Math.round((a + b) / 2 / 5) * 5;
 
@@ -19,13 +20,20 @@ export function prescribe(item, ex, { week, deloadEvery, negStage = 0, negStages
 
 /**
  * 세션 정의 → 실행 계획
- * ctx: { week, deloadEvery, negStage, negStages, alts:{slotId:exId}, exercises }
+ * ctx: { week, deloadEvery, negStage, negStages, alts:{slotId:exId}, exercises, pullup?:{ rank, max } }
+ * pullup이 있으면 턱걸이 단계 슬롯(pullupSlot)을 계급 처방으로 교체
  */
 export function buildPlan(def, ctx) {
   const slots = [], entries = [];
   for (const slot of def.slots) {
-    slots.push({ id: slot.id, rest: restMid(slot.rest), superset: slot.items.length > 1 });
-    slot.items.forEach((item, i) => {
+    let items = slot.items, rest = slot.rest;
+    if (slot.pullupSlot && ctx.pullup) {
+      const it = ua1Item(ctx.pullup.rank, ctx.pullup.max);
+      items = [it];
+      if (it.rest) rest = [it.rest, it.rest];
+    }
+    slots.push({ id: slot.id, rest: restMid(rest), superset: items.length > 1 });
+    items.forEach((item, i) => {
       const options = [item.ex, ...(item.alts ?? [])];
       const chosen = ctx.alts?.[`${slot.id}.${i}`];
       const exId = options.includes(chosen) ? chosen : item.ex;
