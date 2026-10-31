@@ -264,6 +264,29 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   await shot('testday');
   step('일요일 홈 검정 카드');
 
+  // 운동 초기화: 설정·검정은 두고 헬스·체력단련 기록만 지운 뒤 다음 월요일부터 1주차 (지금은 11/8 일요일)
+  const pre = await st();
+  assert.ok(pre.sessions.length > 0 && Object.keys(pre.missions).length > 0);
+  await page.click('#tabbar a[data-tab=settings]');
+  await tid('reset-open').click();
+  await tid('reset-dialog').waitFor();
+  assert.equal(await tid('reset-start').inputValue(), '2026-11-09'); // 이미 시작(11/2) → 다음 월요일
+  assert.equal(await tid('reset-gym').isChecked(), true);
+  assert.equal(await tid('reset-pt').isChecked(), true);
+  assert.equal(await tid('reset-tests').isChecked(), false);
+  await shot('reset');
+  await tid('reset-go').click();
+  await page.waitForURL(/#today/);
+  const post = await st();
+  assert.deepEqual([post.sessions.length, Object.keys(post.targets).length, Object.keys(post.exState).length, Object.keys(post.missions).length, post.skillLogs.length, post.intervals.length],
+    [0, 0, 0, 0, 0, 0]);
+  assert.equal(post.tests.length, pre.tests.length);
+  assert.equal(post.settings.callsign, 'EAGLE');
+  assert.equal(post.settings.theme, 'light');
+  assert.equal(post.settings.startDate, '2026-11-09');
+  await page.waitForSelector('text=작전 개시 D-1');
+  step('운동 초기화: 헬스·체력단련 기록만 삭제(설정·검정 유지) → 11/9부터 1주차');
+
   // 서비스 워커 등록
   const sw = await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()));
   assert.ok(sw, 'SW 등록');

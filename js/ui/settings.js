@@ -4,9 +4,10 @@ import { state, save, replace, exportBackup, importBackupFile, isPersisted, requ
 import { dowOf, dowKo, fmtClock, parseClock, isDateStr } from '../logic/dates.js';
 import { testAnchor } from '../logic/pttest.js';
 import { defaultState } from '../logic/schema.js';
+import { resetWorkout, resetCounts, resetStartDate } from '../logic/reset.js';
 import { incrementFor } from '../logic/progression.js';
 import { fmtKg } from '../logic/num.js';
-import { P, exName } from './common.js';
+import { P, exName, today } from './common.js';
 import { unlockAudio, beep, speak, shortcutUrl } from './fx.js';
 import { APP_VERSION } from '../version.js';
 import { rerender } from './nav.js';
@@ -132,12 +133,56 @@ export function renderSettings(root) {
       h('div', { class: 'spread', style: 'margin-top:10px' }, h('span', { class: 'small' }, '저장소 영구 보관'), persistEl),
       h('button', { class: 'btn sm block', style: 'margin-top:6px', onclick: async () => { const r = await requestPersist(); toast(r ? '영구 저장 허용됨' : '허용되지 않음(홈 화면 앱에서 다시 시도)'); rerender(); } }, '영구 저장 요청')),
 
+    h('div', { class: 'card' }, label('RESET'),
+      h('button', { class: 'btn danger block', 'data-testid': 'reset-open', onclick: resetDialog }, '운동 초기화'),
+      h('p', { class: 'muted small' }, '설정은 그대로 두고 운동 기록만 골라 지운 뒤 1주차부터 다시 시작합니다.'),
+      h('button', { class: 'btn danger block', onclick: () => {
+        if (!confirm('모든 기록과 설정을 지우고 첫 설정 화면으로 갑니다. 먼저 백업하세요. 계속할까요?')) return;
+        if (!confirm('정말 전체 초기화할까요? 되돌릴 수 없습니다.')) return;
+        replace(defaultState()); applyTheme(); location.hash = '#setup';
+      } }, '전체 초기화(설정 포함)')),
+
     h('div', { class: 'card' }, label('SYSTEM'),
       h('div', { class: 'spread' }, h('span', null, '앱 버전'), h('span', { class: 'mono' }, APP_VERSION)),
-      h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => checkForUpdate(true) }, '업데이트 확인'),
-      h('button', { class: 'btn danger block', style: 'margin-top:8px', onclick: () => {
-        if (!confirm('모든 기록과 설정을 지웁니다. 먼저 백업하세요. 계속할까요?')) return;
-        if (!confirm('정말 초기화할까요? 되돌릴 수 없습니다.')) return;
-        replace(defaultState()); applyTheme(); location.hash = '#setup';
-      } }, '데이터 초기화')));
+      h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => checkForUpdate(true) }, '업데이트 확인')));
+}
+
+// 운동 초기화: 지울 기록을 고르고(기본: 헬스 + 체력단련), 헬스 기록을 지우면 시작일(1주차)도 다시 정한다
+function resetDialog() {
+  const c = resetCounts(state);
+  const opt = { gym: true, pt: true, tests: false, startDate: resetStartDate(state.settings.startDate, today()) };
+  const startField = h('label', { class: 'field', style: 'margin:0 0 10px 38px' }, h('span', null, '시작일(월요일) — 이 주가 1주차'),
+    h('input', { type: 'date', value: opt.startDate, 'data-testid': 'reset-start', onchange: (e) => { opt.startDate = e.target.value; } }));
+  const box = (key, title, sub, testid) => h('label', { class: 'check', style: 'align-items:flex-start;padding:6px 0' },
+    h('input', { type: 'checkbox', checked: opt[key], 'data-testid': testid, onchange: (e) => {
+      opt[key] = e.target.checked;
+      if (key === 'gym') startField.hidden = !e.target.checked;
+    } }),
+    h('span', null, h('b', null, title), h('div', { class: 'muted small' }, sub)));
+  const dlg = h('dialog', { class: 'sheet', 'data-testid': 'reset-dialog' },
+    label('RESET'),
+    h('h3', null, '운동 초기화'),
+    h('p', { class: 'muted small' }, '콜사인·장비·증가폭·목표·소리 같은 설정은 그대로 두고, 고른 기록만 지웁니다.'),
+    box('gym', '헬스 기록', `세션 ${c.sessions}개 · 다음 목표 무게 · 네거티브 단계 · 작전 재편성`, 'reset-gym'),
+    startField,
+    box('pt', '체력단련 기록', `결과 ${c.missions}일 · 스킬 ${c.skillLogs}회 · 인터벌 ${c.intervals}회`, 'reset-pt'),
+    box('tests', '체력 검정 기록', `${c.tests}개 — 지우면 60% 개수·턱걸이 계급을 정하려고 검정을 다시 입력해야 해요`, 'reset-tests'),
+    h('button', { class: 'btn block', style: 'margin:8px 0', onclick: async () => {
+      const r = await exportBackup();
+      if (r !== 'cancelled') toast(r === 'shared' ? '백업 공유 완료' : '백업 파일 저장');
+    } }, '먼저 백업 내보내기'),
+    h('div', { class: 'grid2' },
+      h('button', { class: 'btn', onclick: () => dlg.close() }, '취소'),
+      h('button', { class: 'btn danger', 'data-testid': 'reset-go', onclick: () => {
+        if (!opt.gym && !opt.pt && !opt.tests) return toast('지울 기록을 고르세요');
+        if (opt.gym && (!isDateStr(opt.startDate) || dowOf(opt.startDate) !== 1)) return toast('시작일은 월요일이어야 합니다');
+        if (!confirm('고른 기록을 지웁니다. 되돌릴 수 없어요. 계속할까요?')) return;
+        replace(resetWorkout(state, opt));
+        dlg.close();
+        toast('운동 초기화 완료');
+        location.hash = '#today';
+      } }, '초기화')));
+  dlg.addEventListener('close', () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
 }

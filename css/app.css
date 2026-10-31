@@ -225,7 +225,7 @@ table.hist td { padding: 8px 4px; border-bottom: 1px dashed var(--line); }
 .banner[hidden] { display: none; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + 72px); z-index: 50; background: var(--text); color: var(--bg); padding: 10px 16px; max-width: 90vw; font-size: 14px; }
 .toast[hidden] { display: none; }
-dialog.sheet { border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 16px; width: min(92vw, 480px); }
+dialog.sheet { border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 16px; width: min(92vw, 480px); max-height: 90dvh; overflow-y: auto; }
 dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 
 .mission-item { border-top: 1px dashed var(--line); padding: 10px 0; }
