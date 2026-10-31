@@ -97,3 +97,27 @@
 
 ## 진행 상황
 - (작업 끝날 때마다 갱신)
+
+### 2026-10-31 — 1단계(MVP) 구현 완료 · 앱 버전 1.0.0
+- 완료: 1단계 1~10 전부. 명세 항목 ↔ 파일
+  - 루틴·미션·네거티브 단계·워밍업 비율·60분 가드 상수 → `data/program.js`
+  - 판정/계산 순수 함수 → `js/logic/`(dates·schema·progression·warmup·plan·missions·stats·num)
+  - 화면 → `js/ui/`(setup·today·session·summary·log·chart·test·settings + dom·nav·fx·shell·common), 진입점 `js/app.js`, 저장 `js/store.js`
+- 데이터 모델(`js/logic/schema.js`, schema 1): settings / tests / sessions / active(진행 중 세션, 휴식 endsAt) / targets(다음 목표) / exState(네거티브 단계) / missions.
+  2단계용 자리 확보: settings.testAnchorDate·gymDays·proteinTarget·proteinPresets, state.bodyweight·protein·intervals·reschedule, tests[].mode('manual'|'timed'), tests[].run3kSec.
+  상체A 1번은 slot `UA1`(`pullupSlot: true`) — 2단계 턱걸이 계급이 이 슬롯의 종목/처방을 교체하면 됨.
+- 해석해서 정한 것
+  - 휴식 범위 중간값은 5초 단위 반올림(45~60 → 55초)
+  - 1주차 RIR 3은 무게를 쓰는 종목(main·accessory·assist)에만 적용
+  - 메인 RIR 판정: 기록한 RIR이 목표 이상이면 유지(미입력은 통과)
+  - 정체: 비정비 주간 최근 3회가 같은 무게이고 총 반복이 2회 연속 증가 없음 → 메인·보조만, 10% 낮춰 증가폭 단위 반올림
+  - 정비 주간: 판정 보류(무게 유지), 정체 이력에서 제외
+  - 증가폭 기본: 바벨·스미스 보조 2.5 / 덤벨 2 / 머신·케이블 5 / 어시스트 5, 종목별 개별 설정 가능
+  - 60분 가드 남은 시간 = 진행 중 휴식 + Σ(남은 세트 × (40초 + 그 세트 뒤 휴식)), 슈퍼세트 A 뒤 휴식 0, 마지막 세트 뒤 휴식 제외
+  - 슈퍼세트 1세트 감축 = 라운드 1개(A·B 각 1세트), 이미 한 세트 아래로는 안 줄임
+  - 세트 완료 후 같은 슬롯에 남은 세트가 있으면 그 슬롯 유지, 없으면 기본 순서로
+  - 대체 종목은 첫 세트 전까지만 교체 가능, 슬롯별 마지막 선택 기억(settings.alts)
+  - 일지에서 세트를 고쳐도 이미 정해진 다음 목표는 다시 계산하지 않음
+- 테스트: `npm test`(node:test 35개) · `npm run smoke`(로컬 서버 /fitrep/ + 헤드리스 Chromium, 설정→세션→휴식→복원→워밍업→가드→판정→일지→검정→테마→SW)
+- 배포 규칙: 배포마다 `sw.js` CACHE_VERSION과 `js/version.js`를 함께 올림(tests/shell.test.js가 일치·캐시 목록 누락 검사)
+- 다음(2단계): 체력 검정 2분 모드·그래프, 턱걸이 계급(UA1·스킬 데이 교체), 작전 재편성, 체중·단백질, 400m 인터벌 코치
