@@ -36,47 +36,38 @@ const shot = async (name) => {
 const step = (msg) => console.log(`✓ ${msg}`);
 const tid = (id) => page.locator(`[data-testid="${id}"]`);
 
+const st = () => page.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
+const nav = async (hash) => { await page.evaluate((h) => { location.hash = h; }, hash); await page.waitForTimeout(100); };
+
 try {
+  // ── 첫 실행 설정 ──
   await page.goto(BASE);
   await page.waitForURL(/#setup/);
   await shot('setup');
   await page.fill('input[name=callsign]', 'EAGLE');
   assert.equal(await page.inputValue('input[name=startDate]'), '2026-11-02');
   await page.fill('input[name=pullups]', '2');
-  await page.fill('input[name=pushups]', '50');
-  await page.fill('input[name=situps]', '60');
-  await page.fill('input[name=goalPush]', '72');
-  await page.fill('input[name=goalSit]', '86');
   await page.click('button[type=submit]');
   await page.waitForURL(/#today/);
-  step('첫 실행 설정');
+  step('첫 실행 설정(콜사인·시작일·턱걸이 최대)');
 
+  // ── 금일 임무 ──
   assert.match(await page.textContent('#callsign'), /EAGLE/);
   assert.match(await page.textContent('#dtg'), /^0218(00|01)I NOV 26$/);
   assert.match(await tid('session-card').textContent(), /상체A/);
   assert.match(await tid('session-card').textContent(), /WEEK 1/);
-  assert.match(await tid('mission-card').textContent(), /36/); // 윗몸 60 × 0.6
-  await shot('today');
-  step('금일 임무: 상체A + 윗몸 36×4 + DTG');
-
-  // 체력단련: 끝난 뒤 결과 기록 + 내일 브리핑(폰은 체력단련 중 사용 불가)
-  await tid('pt-done').click();
-  await page.waitForSelector('[data-testid="pt-day-2026-11-02"].s-done');
-  assert.match(await tid('pt-tomorrow').textContent(), /팔굽혀펴기30 개 × 5세트/); // 팔굽 50 × 0.6
-  assert.match(await tid('pt-summary').textContent(), /완료 1 · 일부 0 · 못함 0 \/ 5일/);
-  assert.equal(await tid('pt-day-2026-11-05').isDisabled(), true); // 목(달리기만)·미래는 선택 불가
-  await shot('pt-mission');
-  step('체력단련 결과 기록(완료) + 내일 브리핑(팔굽 30×5) + 주간 7칸');
-
+  assert.equal(await page.locator('text=PT MISSION').count(), 0);
   await tid('pick-LB').click();
   assert.match(await tid('session-card').textContent(), /하체B/);
   await tid('pick-UA').click();
+  await shot('today');
+  step('금일 임무: 월 상체A + 수동 선택 + DTG');
 
+  // ── 세션: 세트 완료 → 휴식 타이머 ──
   await tid('start').click();
   await page.waitForURL(/#session/);
   await page.waitForSelector('body.session-mode');
-assert.equal(await page.locator('#tabbar').isVisible(), false);
-  // 네거티브 풀업 1세트 → 휴식 90초
+  assert.equal(await page.locator('#tabbar').isVisible(), false);
   await tid('complete').click();
   await tid('rest').waitFor();
   assert.match(await page.textContent('#rest-clock'), /1:30|1:29/);
@@ -87,14 +78,13 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   assert.match(await page.textContent('.rest-label'), /휴식 종료/);
   step('세트 완료 → 휴식 타이머(±15초) → 종료');
 
-  // 새로고침해도 진행 중 세션 복원
   await page.reload();
   await page.waitForURL(/#session/);
   assert.match(await tid('entry-0').textContent(), /1\/3/);
-  step('새로고침 후 진행 중 세션 복원');
   await tid('skip-rest').click();
+  step('새로고침 후 진행 중 세션 복원');
 
-  // 벤치로 이동 → 대체 종목 왕복 → 60kg 워밍업
+  // ── 벤치: 대체 종목 왕복 → 워밍업 → 4세트 ──
   await tid('entry-1').click();
   await tid('swap').click();
   assert.match(await tid('entry-1').textContent(), /스미스 벤치/);
@@ -103,42 +93,44 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   const plus = tid('entry-1').locator('[data-testid="w"] button[aria-label$="증가"]');
   for (let i = 0; i < 24; i++) await plus.click();
   const warm = await tid('warmup').textContent();
-  assert.match(warm, /20kg × 10/);
-  assert.match(warm, /30kg × 5/);
-  assert.match(warm, /42\.5kg × 3/);
-  assert.match(warm, /50kg × 1/);
+  for (const re of [/20kg × 10/, /30kg × 5/, /42\.5kg × 3/, /50kg × 1/]) assert.match(warm, re);
   await shot('bench-warmup');
-  step('대체 종목 교체 + 워밍업 원판 계산');
-
-  for (let s = 0; s < 4; s++) {
+  for (let k = 0; k < 4; k++) {
     await tid('entry-1').locator('[data-testid="complete"]').click();
     if (await tid('skip-rest').isVisible()) await tid('skip-rest').click();
   }
   assert.match(await tid('entry-1').textContent(), /4\/4/);
-  step('벤치 4세트 기록');
+  step('대체 종목 교체 + 워밍업 원판 계산 + 벤치 4세트');
 
-  // 60분 가드: 55분 경과로 점프
+  // ── 60분 가드 ──
   await page.clock.fastForward(55 * 60_000);
   await tid('guard-alert').waitFor();
   await shot('guard');
-  const before = await page.textContent('#hud-left');
+  const leftBefore = +(await page.textContent('#hud-left'));
   await tid('trim').click();
-  const after = await page.textContent('#hud-left');
-  assert.equal(+before - 2, +after); // 슈퍼세트 1라운드(A+B) 감축
-  step(`60분 가드 경보 + 마지막 슈퍼세트 감축 (${before}→${after})`);
+  const leftAfter = +(await page.textContent('#hud-left'));
+  assert.equal(leftBefore - 2, leftAfter); // 슈퍼세트 1라운드(A+B)
+  step(`60분 가드 경보 + 마지막 슈퍼세트 감축 (${leftBefore}→${leftAfter})`);
 
+  // ── 종료 → 판정 → 요약 ──
   await tid('end').click();
   await page.waitForURL(/#summary\//);
   assert.match(await tid('res-bench').textContent(), /60 → 62\.5kg/);
   await tid('neg-easy').check();
   await shot('summary');
-  step('작전 종료 → 판정(벤치 60→62.5) → 요약');
   await tid('summary-ok').click();
   await page.waitForURL(/#today/);
   await page.waitForSelector('[data-testid=week4] .done');
-  assert.equal(await tid('week4').locator('.done').count(), 1);
+  step('작전 종료 → 판정(벤치 60→62.5) → 요약 → 이번 주 1/4');
 
-  // 일지
+  // ── 요일 변경 규칙 경고: 오늘 상체A를 했는데 상체B를 고르면 ──
+  await tid('pick-UB').click();
+  assert.match(await tid('pick-warn').textContent(), /상체끼리 48시간 안 됨 — 오늘 상체A/);
+  await tid('pick-LA').click();
+  assert.equal(await tid('pick-warn').count(), 0);
+  step('요일 변경 규칙 경고(상체끼리 48시간)');
+
+  // ── 일지 ──
   await page.click('#tabbar a[data-tab=log]');
   await page.locator('.log-day').first().click();
   await page.locator('.log-set button', { hasText: '수정' }).first().waitFor();
@@ -148,181 +140,88 @@ assert.equal(await page.locator('#tabbar').isVisible(), false);
   assert.equal(await page.locator('svg.chart circle').count(), 1);
   step('일지 날짜별/종목별 + SVG 그래프');
 
-  // 검정
+  // ── 측정: 턱걸이 3개 → 단계 올라감, 같은 날 기록 병합 ──
   await page.click('#tabbar a[data-tab=test]');
-  await tid('t-push').locator('button[aria-label$="증가"]').click();
+  await tid('t-pull').locator('button[aria-label$="증가"]').click();
   await tid('t-save').click();
-  assert.match(await page.textContent('table.hist'), /51/);
-  step('검정 기록 저장');
+  await page.waitForSelector('[data-testid=chart-pullups]');
+  let s1 = await st();
+  assert.equal(s1.tests.length, 1);
+  assert.equal(s1.tests[0].pullups, 3);
+  assert.equal(s1.tests[0].pushups, null);
+  await shot('test-tab');
+  step('턱걸이 측정 기록(같은 날 병합, 팔굽·윗몸은 선택)');
 
-  // 설정: 라이트 테마
+  // ── 설정: 라이트 테마 ──
   await page.click('#tabbar a[data-tab=settings]');
   await tid('theme-light').click();
   assert.equal(await page.getAttribute('html', 'data-theme'), 'light');
   await shot('settings-light');
-  await page.click('#tabbar a[data-tab=today]');
-  await shot('today-light');
   step('설정: 라이트 테마');
 
-  // 다음 상체A 목표가 미리 채워지는지
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
-  assert.equal(stored.targets.bench.weight, 62.5);
-  assert.equal(stored.exState.negPullup.stage, 1);
-  assert.equal(stored.schema, 4);
+  s1 = await st();
+  assert.equal(s1.targets.bench.weight, 62.5);
+  assert.equal(s1.exState.negPullup.stage, 1);
+  assert.equal(s1.schema, 5);
+  for (const k of ['missions', 'skillLogs', 'intervals', 'drill', 'reschedule']) assert.equal(k in s1, false, k);
 
-
-  // ───────── 2단계 ─────────
-  const nav = async (hash) => { await page.evaluate((h) => { location.hash = h; }, hash); await page.waitForTimeout(100); };
-  const st = () => page.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
-  await page.locator('#callsign svg.insignia').waitFor();
-  step('상단 바 계급장');
-
-  // 화요일로 이동 → 하체A 패스 → 재편성
-  await page.clock.fastForward(24 * 3600_000);
-  await nav('#log'); await nav('#today');
-  assert.match(await tid('session-card').textContent(), /하체A/);
-  await tid('pass').click();
-  await tid('pass-dialog').locator('button', { hasText: '당직' }).click();
-  await tid('resched-card').waitFor();
-  await shot('reschedule');
-  const opts = await page.locator('[data-testid^="resched-opt-"]').count();
-  assert.ok(opts >= 1 && opts <= 3);
-  await tid('resched-apply-0').click();
-  await tid('resched-applied').waitFor();
-  assert.match(await tid('session-card').textContent(), /패스 — 당직/);
-  const rs = Object.values((await st()).reschedule)[0];
-  assert.deepEqual(rs.applied.assign, { '2026-11-04': 'LA', '2026-11-05': 'UB', '2026-11-06': 'LB' });
-  step('패스(당직) → 재배치안 최대 3개 → 적용(수 하체A·목 상체B·금 하체B)');
-
-  await tid('pt-day-2026-11-02').click();
-  await tid('pt-partial').click();
-  assert.equal((await st()).missions['2026-11-02'].status, 'partial');
-  assert.match(await tid('pt-summary').textContent(), /완료 0 · 일부 1/);
-  step('지난 날(월) 체력단련 결과 수정 → 일부');
-
-  // 체력 검정 2분 모드
-  await page.click('#tabbar a[data-tab=test]');
-  assert.match(await tid('rank-card').textContent(), /이병/);
-  await tid('pt-pushups').click();
-  await page.waitForURL(/#pttest/);
-  await tid('pt-run').waitFor();
-  await page.clock.fastForward(3_500);
-  await page.clock.fastForward(31_000);
-  assert.match(await page.textContent('#pt-target'), /^1[89]$/); // 목표 72 → 30초 누적 18
-  await shot('pt-run');
-  await page.clock.fastForward(90_000);
-  await tid('pt-result').waitFor();
-  await tid('pt-save').click();
-  await page.waitForURL(/#test/);
-  let tests = (await st()).tests;
-  assert.equal(tests.find((t) => t.date === '2026-11-03').pushups, 72);
-  assert.equal(tests.find((t) => t.date === '2026-11-03').mode, 'timed');
-  step('2분 모드: 카운트다운 → 누적 목표 → 결과 저장(timed)');
-
-  // 턱걸이 3개 → 일병 → 상체A 1번 클러스터
-  await tid('t-pull').locator('button[aria-label$="증가"]').click();
-  await tid('t-save').click();
-  await page.waitForSelector('[data-testid=rank-card]:has-text("일병")');
-  assert.equal((await st()).tests.filter((t) => t.date === '2026-11-03').length, 1);
-  await shot('test-tab');
-  await nav('#today');
-  await tid('pick-UA').click();
-  assert.match(await tid('session-card').textContent(), /클러스터 턱걸이 6×1~2/);
-  step('계급 승급(이병→일병) → 상체A 1번 클러스터로 교체');
-
-  // 스킬 데이 가이드(일병 → 사다리 1-2-3 ×2)
-  await nav('#skill');
-  await tid('skill-card').waitFor();
-  assert.equal(await tid('skill-card').locator('.skill-set').count(), 6);
-  for (let i = 0; i < 6; i++) await tid('skill-done').click();
-  await shot('skill');
-  await tid('skill-finish').click();
-  await page.waitForURL(/#today/);
-  assert.equal((await st()).skillLogs[0].sets.length, 6);
-  step('스킬 가이드: 사다리 6세트 → 저장');
-
-  // 400m 인터벌 코치
-  await nav('#interval');
-  await tid('iv-go').click();
-  await tid('iv-card').waitFor();
-  await page.clock.fastForward(98_000);
-  await tid('iv-lap').click();
-  assert.match(await tid('iv-card').textContent(), /WALK/);
-  await page.clock.fastForward(91_000);
-  await page.waitForSelector('[data-testid=iv-card]:has-text("RUN")');
-  assert.match(await page.textContent('body'), /2 \/ 6회/);
-  await shot('interval');
-  await page.locator('button', { hasText: '중단' }).click();
-  await page.waitForURL(/#today/);
-  assert.equal((await st()).intervals[0].laps.length, 1);
-  step('인터벌: 랩 → 90초 걷기 → 2회차 자동 출발 → 중단 시 랩 저장');
-
-  // 일요일 = 체력 검정일(기준일 미설정 → 시작 주 일요일 11/8)
-  await page.clock.fastForward(5 * 24 * 3600_000);
+  // ── 격주 일요일 측정 카드 ──
+  await page.clock.fastForward(6 * 24 * 3600_000);
   await nav('#log'); await nav('#today');
   await tid('testday-card').waitFor();
   await shot('testday');
-  step('일요일 홈 검정 카드');
+  step('격주 일요일 턱걸이 측정 카드');
 
-  // 운동 초기화: 설정·검정은 두고 헬스·체력단련 기록만 지운 뒤 다음 월요일부터 1주차 (지금은 11/8 일요일)
-  const pre = await st();
-  assert.ok(pre.sessions.length > 0 && Object.keys(pre.missions).length > 0);
+  // ── 운동 초기화: 헬스 기록만 지우고 다음 월요일부터 1주차 (지금은 11/8 일요일) ──
   await page.click('#tabbar a[data-tab=settings]');
   await tid('reset-open').click();
   await tid('reset-dialog').waitFor();
-  assert.equal(await tid('reset-start').inputValue(), '2026-11-09'); // 이미 시작(11/2) → 다음 월요일
+  assert.equal(await tid('reset-start').inputValue(), '2026-11-09');
   assert.equal(await tid('reset-gym').isChecked(), true);
-  assert.equal(await tid('reset-pt').isChecked(), true);
   assert.equal(await tid('reset-tests').isChecked(), false);
   await shot('reset');
   await tid('reset-go').click();
   await page.waitForURL(/#today/);
   const post = await st();
-  assert.deepEqual([post.sessions.length, Object.keys(post.targets).length, Object.keys(post.exState).length, Object.keys(post.missions).length, post.skillLogs.length, post.intervals.length],
-    [0, 0, 0, 0, 0, 0]);
-  assert.equal(post.tests.length, pre.tests.length);
+  assert.deepEqual([post.sessions.length, Object.keys(post.targets).length, Object.keys(post.exState).length], [0, 0, 0]);
+  assert.equal(post.tests.length, 1);
   assert.equal(post.settings.callsign, 'EAGLE');
   assert.equal(post.settings.theme, 'light');
   assert.equal(post.settings.startDate, '2026-11-09');
   await page.waitForSelector('text=작전 개시 D-1');
-  step('운동 초기화: 헬스·체력단련 기록만 삭제(설정·검정 유지) → 11/9부터 1주차');
+  step('운동 초기화: 헬스 기록만 삭제(설정·측정 유지) → 11/9부터 1주차');
 
-  // 서비스 워커 등록
   const sw = await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()));
   assert.ok(sw, 'SW 등록');
-  step('서비스 워커 등록 + 저장 상태 확인');
+  step('서비스 워커 등록');
 
-
-  // 2.0.0(schema 2) 저장 데이터 → 현재 스키마 로드(체중·단백질 제거, 미션 체크 → 결과 기록, 나머지 유지)
+  // ── 이전 버전(schema 4) 저장 데이터 → v5 ──
   const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const p2 = await ctx2.newPage();
-  p2.on('pageerror', (e) => errors.push(`[v1] ${e}`));
+  p2.on('pageerror', (e) => errors.push(`[v4] ${e}`));
   await p2.addInitScript(() => {
     if (localStorage.getItem('fitrep')) return;
     localStorage.setItem('fitrep', JSON.stringify({
-      schema: 2, setupDone: true,
-      settings: { callsign: 'OLDTIMER', startDate: '2026-11-02', goals: { pullups: 10, pushups: 70, situps: 80, run3kSec: 750 }, proteinTarget: [120, 150], proteinPresets: [{ name: '닭가슴살 200g', g: 45 }] },
-      tests: [{ id: 'x', date: '2026-11-01', pullups: 7, pushups: 50, situps: 60, mode: 'manual' }],
+      schema: 4, setupDone: true,
+      settings: { callsign: 'OLDTIMER', startDate: '2026-11-02', goals: { pullups: 10, pushups: 70 }, shortcut: { enabled: true, name: 'x' }, gymDays: [1, 2], alts: { 'UB3.0': 'lowPulleyRow' } },
+      tests: [{ id: 'x', date: '2026-11-01', pullups: 7, pushups: 50, situps: 60, mode: 'timed' }],
       sessions: [{ id: 's1', key: 'UA', date: '2026-11-02', week: 1, startedAt: 1, endedAt: 2, entries: [{ slotId: 'UA2', ex: 'bench', presc: { sets: 4, reps: [5, 6] }, sets: [{ w: 60, reps: 6, rir: 2 }] }], results: [] }],
-      targets: { bench: { weight: 62.5 } }, exState: {}, missions: { '2026-11-02': { done: true, at: 1 } }, reschedule: {},
-      bodyweight: [{ date: '2026-11-02', kg: 70.1 }], protein: { '2026-11-02': [{ name: '닭가슴살 200g', g: 45 }] },
-      intervals: [], skillLogs: [], drill: null,
+      targets: { bench: { weight: 62.5 } }, exState: {},
+      missions: { '2026-11-02': { status: 'done' } }, skillLogs: [{ date: '2026-11-04' }], intervals: [], reschedule: {}, drill: { type: 'skill' },
     }));
   });
   await p2.goto(BASE);
   await p2.waitForSelector('[data-testid=session-card]');
   assert.match(await p2.textContent('#callsign'), /OLDTIMER/);
   const m = await p2.evaluate(() => JSON.parse(localStorage.getItem('fitrep')));
-  assert.equal(m.schema, 4);
-  assert.deepEqual(m.missions['2026-11-02'], { status: 'done', at: 1 });
+  assert.equal(m.schema, 5);
   assert.equal(m.sessions.length, 1);
   assert.equal(m.targets.bench.weight, 62.5);
-  assert.equal('bodyweight' in m || 'protein' in m || 'proteinPresets' in m.settings, false);
-  assert.equal(await p2.locator('[data-testid=ration-card]').count(), 0);
-  await p2.evaluate(() => { location.hash = '#test'; });
-  await p2.waitForSelector('[data-testid=rank-card]:has-text("상병")');
+  for (const k of ['missions', 'skillLogs', 'intervals', 'drill', 'reschedule']) assert.equal(k in m, false, k);
+  for (const k of ['goals', 'shortcut', 'gymDays']) assert.equal(k in m.settings, false, k);
+  assert.deepEqual(m.settings.alts, {});
   await ctx2.close();
-  step('2.0.0 데이터 → v4 마이그레이션(체중·단백질 제거, 미션 완료 → 결과 기록, 상병 판정)');
+  step('이전 데이터(schema 4) → v5: 빠진 기능 저장값 제거, 기록 유지');
 
   assert.deepEqual(errors, []);
   console.log('\nSMOKE OK');

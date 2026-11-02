@@ -228,59 +228,6 @@ table.hist td { padding: 8px 4px; border-bottom: 1px dashed var(--line); }
 dialog.sheet { border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 16px; width: min(92vw, 480px); max-height: 90dvh; overflow-y: auto; }
 dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 
-.mission-item { border-top: 1px dashed var(--line); padding: 10px 0; }
-.mission-item:first-of-type { border-top: 0; }
-.mission-item ol { margin: 6px 0 0; padding-left: 20px; }
-.mission-item li { margin: 3px 0; }
-.kpi { font: 700 28px var(--mono); font-variant-numeric: tabular-nums; color: var(--amber); }
-
-/* ── 2단계 ── */
-.insignia rect.on { fill: var(--amber); }
-.insignia rect.off { fill: var(--line); opacity: .5; }
-.topbar .callsign { display: flex; align-items: center; gap: 8px; }
-.progress { height: 10px; background: var(--sunk); border: 1px solid var(--line); margin: 6px 0 2px; }
-.progress i { display: block; height: 100%; background: var(--od); }
-.progress i.full { background: var(--amber); }
-.bigclock { font: 700 72px/1 var(--mono); font-variant-numeric: tabular-nums; text-align: center; color: var(--amber); margin: 12px 0; }
-.bigclock.walk { color: var(--accent); }
-.drill-sub { text-align: center; font-size: 18px; }
-.cue-target { text-align: center; }
-.cue-target .kpi { font-size: 44px; }
-.plan-opt { border-top: 1px dashed var(--line); padding: 10px 0; }
-.plan-opt:first-of-type { border-top: 0; }
-.plan-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin: 6px 0; text-align: center; font-size: 12px; }
-.plan-days > div { border: 1px solid var(--line); padding: 4px 0; min-height: 44px; }
-.plan-days > div.has { background: var(--od); color: #ECE8D9; border-color: var(--od); }
-.plan-days > div.moved { outline: 2px solid var(--amber); outline-offset: -2px; }
-.plan-days > div.past { opacity: .45; }
-.skill-set { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; min-height: 52px; border-top: 1px dashed var(--line); }
-.skill-set.cur { color: var(--amber); }
-.skill-set.ok { color: var(--muted); }
-.qadd { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.laps { width: 100%; border-collapse: collapse; font: 15px var(--mono); font-variant-numeric: tabular-nums; }
-.laps td { padding: 6px 4px; border-bottom: 1px dashed var(--line); }
-.laps .slow { color: var(--alert); }
-.laps .fast { color: var(--amber); }
-.topbar .insignia rect.off { display: none; }
-
-/* ── 체력단련 미션: 결과 기록 + 주간 7칸 ── */
-.pt-sec { border-top: 1px dashed var(--line); padding: 10px 0 2px; margin-top: 10px; }
-.pt-line { margin: 4px 0; }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
-.seg button { min-height: var(--tap); border: 1px solid var(--line); background: var(--sunk); font-weight: 700; cursor: pointer; touch-action: manipulation; }
-.seg button.done.on { background: var(--od); border-color: var(--od); color: #ECE8D9; }
-.seg button.partial.on { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
-.seg button.skip.on { background: var(--alert); border-color: var(--alert); color: #fff; }
-.week7 { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 6px; }
-.week7 button {
-  min-height: 60px; padding: 4px 0; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 10px; line-height: 1.2; word-break: keep-all;
-}
-.week7 button[disabled] { cursor: default; }
-.week7 .d { font-weight: 700; font-size: 12px; }
-.week7 .st { font: 700 15px var(--mono); }
-.week7 .s-done { background: var(--od); border-color: var(--od); color: #ECE8D9; }
-.week7 .s-partial { border-color: var(--amber); color: var(--amber); }
-.week7 .s-skip { border-color: var(--alert); color: var(--alert); }
-.week7 .na, .week7 .future { opacity: .5; }
-.week7 .sel { outline: 2px solid var(--amber); outline-offset: -2px; }
+/* 요일 변경 규칙 경고(작전 시간 초과 같은 강한 경고가 아니라 해저드 없이 글자만) */
+.warn { color: var(--alert); font-size: 13px; margin: 8px 0; }
+.warn > div + div { margin-top: 2px; }

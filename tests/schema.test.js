@@ -33,10 +33,16 @@ test('종목 이력·주간 진행', () => {
   assert.deepEqual(judgeHistory(sessions, 'backSquat'), []);
 });
 
-test('v1 → 현재 마이그레이션: 기존 기록 유지 + 2단계 필드', () => {
+// 지금 스키마에서 빠진 기능의 저장값이 남아 있지 않은지
+function assertLean(s) {
+  for (const k of ['missions', 'skillLogs', 'intervals', 'drill', 'reschedule', 'bodyweight', 'protein']) assert.equal(k in s, false, k);
+  for (const k of ['goals', 'shortcut', 'gymDays', 'proteinTarget', 'proteinPresets']) assert.equal(k in s.settings, false, `settings.${k}`);
+}
+
+test('v1 → 현재: 헬스 기록·검정·설정 유지, 빠진 기능 저장값 없음', () => {
   const v1 = {
     schema: 1, setupDone: true,
-    settings: { callsign: 'EAGLE', startDate: '2026-11-02', goals: { pushups: 72, situps: 86, run3kSec: 750 } },
+    settings: { callsign: 'EAGLE', startDate: '2026-11-02', goals: { pushups: 72, situps: 86, run3kSec: 750 }, alts: { 'UA2.0': 'smithBench' } },
     tests: [{ id: 't', date: '2026-10-31', pullups: 2, pushups: 50, situps: 60, mode: 'manual' }],
     sessions: [{ id: 's', key: 'UA', date: '2026-11-02', week: 1, entries: [{ ex: 'bench', sets: [{ w: 60, reps: 6 }] }] }],
     targets: { bench: { weight: 62.5 } }, exState: { negPullup: { stage: 1 } },
@@ -45,22 +51,19 @@ test('v1 → 현재 마이그레이션: 기존 기록 유지 + 2단계 필드', 
   const s = migrate(v1);
   assert.equal(s.schema, SCHEMA_VERSION);
   assert.equal(s.settings.callsign, 'EAGLE');
-  assert.equal(s.settings.goals.pushups, 72);
-  assert.equal(s.settings.goals.pullups, 10);
+  assert.equal(s.settings.startDate, '2026-11-02');
+  assert.deepEqual(s.settings.alts, {}); // 슬롯 구성이 바뀌어 비움
   assert.equal(s.sessions.length, 1);
   assert.equal(s.targets.bench.weight, 62.5);
   assert.equal(s.exState.negPullup.stage, 1);
-  assert.deepEqual(s.reschedule['2026-11-02'], { passes: [{ date: '2026-11-03', reason: '당직' }], applied: null });
-  assert.deepEqual(s.skillLogs, []);
-  assert.equal(s.drill, null);
-  assert.equal('proteinPresets' in s.settings, false);
-  assert.equal('bodyweight' in s, false);
+  assert.equal(s.tests[0].pullups, 2);
+  assertLean(s);
 });
 
-test('v2 → v3 마이그레이션: 체중·단백질 저장값만 제거, 나머지 유지', () => {
+test('v2·v4 → 현재: 체력단련·스킬·인터벌·재편성·목표·단축어 제거, 나머지 유지', () => {
   const v2 = {
     schema: 2, setupDone: true,
-    settings: { callsign: 'EAGLE', startDate: '2026-11-02', gymDays: [1, 2, 4, 5], proteinTarget: [120, 150], proteinPresets: [{ name: '닭가슴살 200g', g: 45 }] },
+    settings: { callsign: 'EAGLE', startDate: '2026-11-02', gymDays: [1, 2, 4, 5], proteinTarget: [120, 150], proteinPresets: [{ name: '닭가슴살 200g', g: 45 }], testAnchorDate: '2026-11-08' },
     tests: [{ id: 't', date: '2026-11-03', pullups: 3, pushups: 72, situps: 60, mode: 'timed' }],
     sessions: [{ id: 's', key: 'UA', date: '2026-11-02', week: 1, entries: [] }],
     bodyweight: [{ date: '2026-11-03', kg: 70.1 }],
@@ -69,24 +72,25 @@ test('v2 → v3 마이그레이션: 체중·단백질 저장값만 제거, 나�
     skillLogs: [{ date: '2026-11-04', rank: '일병', sets: [] }],
     reschedule: { '2026-11-02': { passes: [{ date: '2026-11-03', key: 'LA', reason: '당직' }], applied: null } },
   };
-  const s = migrate(v2);
-  assert.equal(s.schema, SCHEMA_VERSION);
-  for (const k of ['bodyweight', 'protein']) assert.equal(k in s, false, k);
-  for (const k of ['proteinTarget', 'proteinPresets']) assert.equal(k in s.settings, false, k);
-  assert.deepEqual(s.settings.gymDays, [1, 2, 4, 5]);
-  assert.equal(s.tests[0].mode, 'timed');
-  assert.equal(s.sessions.length, 1);
-  assert.equal(s.intervals[0].laps[0], 98);
-  assert.equal(s.skillLogs.length, 1);
-  assert.equal(s.reschedule['2026-11-02'].passes[0].reason, '당직');
-});
+  const a = migrate(v2);
+  assert.equal(a.schema, SCHEMA_VERSION);
+  assert.equal(a.settings.testAnchorDate, '2026-11-08');
+  assert.equal(a.tests[0].pullups, 3);
+  assert.equal(a.sessions.length, 1);
+  assertLean(a);
 
-test('v3 → v4 마이그레이션: 미션 완료 체크 → 결과 기록', () => {
-  const s = migrate({
-    schema: 3, setupDone: true, settings: { callsign: 'EAGLE' },
-    missions: { '2026-11-02': { done: true, at: 5 }, '2026-11-03': { done: false }, '2026-11-04': { status: 'partial', at: 7 } },
-  });
-  assert.equal(s.schema, 4);
-  assert.deepEqual(s.missions, { '2026-11-02': { status: 'done', at: 5 }, '2026-11-04': { status: 'partial', at: 7 } });
-  assert.equal(s.settings.callsign, 'EAGLE');
+  const v4 = {
+    schema: 4, setupDone: true,
+    settings: { callsign: 'EAGLE', goals: { pullups: 10 }, shortcut: { enabled: true, name: 'x' }, gymDays: [1], theme: 'light', sound: false },
+    missions: { '2026-11-02': { status: 'done' } }, skillLogs: [], intervals: [], reschedule: {}, drill: { type: 'skill' },
+    sessions: [{ id: 's', key: 'LB', date: '2026-11-06', entries: [] }], active: null,
+  };
+  const b = migrate(v4);
+  assert.equal(b.schema, SCHEMA_VERSION);
+  assert.equal(b.settings.theme, 'light');
+  assert.equal(b.settings.sound, false);
+  assert.equal(b.sessions[0].key, 'LB');
+  assertLean(b);
+  // 새로 만든 상태에도 빠진 기능 필드가 없음
+  assertLean(defaultState());
 });

@@ -11,23 +11,17 @@ function sample() {
     sessions: [{ id: 's1', key: 'UA', date: '2026-11-02', entries: [] }],
     targets: { bench: { weight: 62.5 } },
     exState: { negPullup: { stage: 1 } },
-    reschedule: { '2026-11-02': { passes: [{ date: '2026-11-03' }], applied: null } },
     active: { id: 'a', key: 'LA' },
-    missions: { '2026-11-02': { status: 'done' } },
-    skillLogs: [{ date: '2026-11-04' }],
-    intervals: [{ date: '2026-11-07', laps: [98] }],
     tests: [{ id: 't', date: '2026-10-31', pullups: 3 }],
-    drill: { type: 'skill' },
   });
   return s;
 }
 
-test('기본(헬스 + 체력단련): 기록만 지우고 설정·검정은 유지, 시작일 변경', () => {
+test('헬스 기록: 기록만 지우고 설정·검정은 유지, 시작일 변경', () => {
   const before = sample();
   const copy = JSON.parse(JSON.stringify(before));
-  const s = resetWorkout(before, { gym: true, pt: true, startDate: '2026-11-09' });
-  assert.deepEqual([s.sessions, s.targets, s.exState, s.reschedule, s.active], [[], {}, {}, {}, null]);
-  assert.deepEqual([s.missions, s.skillLogs, s.intervals, s.drill], [{}, [], [], null]);
+  const s = resetWorkout(before, { gym: true, startDate: '2026-11-09' });
+  assert.deepEqual([s.sessions, s.targets, s.exState, s.active], [[], {}, {}, null]);
   assert.equal(s.tests.length, 1);
   assert.equal(s.settings.startDate, '2026-11-09');
   assert.equal(s.settings.callsign, 'EAGLE');
@@ -37,22 +31,18 @@ test('기본(헬스 + 체력단련): 기록만 지우고 설정·검정은 유�
   assert.deepEqual(before, copy); // 원본은 그대로
 });
 
-test('검정만: 검정 기록과 진행 중 2분 모드만, 헬스 세션 진행 중이면 유지', () => {
-  const st = { ...sample(), drill: { type: 'pttest' } };
-  const s = resetWorkout(st, { tests: true });
+test('검정만: 측정 기록만 지우고 진행 중 세션·헬스 기록은 유지', () => {
+  const s = resetWorkout(sample(), { tests: true });
   assert.deepEqual(s.tests, []);
-  assert.equal(s.drill, null);
   assert.equal(s.sessions.length, 1);
   assert.equal(s.active.key, 'LA');
   assert.equal(s.settings.startDate, '2026-11-02');
-  // 체력단련만 지울 땐 진행 중 2분 모드는 건드리지 않음
-  assert.equal(resetWorkout(st, { pt: true }).drill.type, 'pttest');
 });
 
 test('헬스만 지우면서 시작일을 안 주면 그대로', () => {
   const s = resetWorkout(sample(), { gym: true });
   assert.equal(s.settings.startDate, '2026-11-02');
-  assert.equal(s.missions['2026-11-02'].status, 'done');
+  assert.equal(s.tests.length, 1);
 });
 
 test('기본 시작일·지울 개수', () => {
@@ -60,5 +50,5 @@ test('기본 시작일·지울 개수', () => {
   assert.equal(resetStartDate('2026-11-02', '2026-11-02'), '2026-11-02');
   assert.equal(resetStartDate('2026-11-02', '2026-11-08'), '2026-11-09'); // 시작했으면 다가오는 월요일
   assert.equal(resetStartDate(null, '2026-11-03'), '2026-11-09');
-  assert.deepEqual(resetCounts(sample()), { sessions: 1, missions: 1, skillLogs: 1, intervals: 1, tests: 1 });
+  assert.deepEqual(resetCounts(sample()), { sessions: 1, tests: 1 });
 });

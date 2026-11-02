@@ -1,4 +1,4 @@
-// 소리(Web Audio)·음성(speechSynthesis)·화면 꺼짐 방지(Wake Lock)·단축어 호출. 진동 API는 쓰지 않는다(iOS 미지원).
+// 소리(Web Audio)·음성(speechSynthesis)·화면 꺼짐 방지(Wake Lock). 진동 API는 쓰지 않는다(iOS 미지원).
 let ctx = null;
 
 // 첫 사용자 탭에서 호출 — iOS는 제스처 안에서만 오디오가 풀린다
@@ -62,12 +62,4 @@ export function keepAwake(on) {
   wanted = on;
   if (on) acquire();
   else if (lock) { lock.release().catch(() => {}); lock = null; }
-}
-
-// 잠금화면에서도 울리는 시계 타이머: 단축어 앱 호출(설정 옵션)
-export function shortcutUrl(name, seconds) {
-  return `shortcuts://run-shortcut?name=${encodeURIComponent(name)}&input=text&text=${Math.round(seconds)}`;
-}
-export function runShortcut(name, seconds) {
-  location.href = shortcutUrl(name, seconds);
 }

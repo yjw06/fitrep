@@ -1,7 +1,6 @@
 // 저장 스키마 + 마이그레이션 (순수 함수). store.js가 localStorage 입출력을 맡는다.
-// 2단계 필드(intervals, reschedule, skillLogs, drill 등)도 여기서 정의한다.
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const APP_ID = 'fitrep';
 
 export function defaultSettings() {
@@ -16,12 +15,8 @@ export function defaultSettings() {
     plates: [20, 15, 10, 5, 2.5, 1.25],
     inc: { mainUpper: 2.5, mainLower: 5, barbell: 2.5, smith: 2.5, dumbbell: 2, machine: 5, cable: 5, assist: 5 },
     incOverride: {},            // { exId: kg } 종목별 증가폭
-    goals: { pullups: 10, pushups: null, situps: null, run3kSec: 750 },
-    shortcut: { enabled: false, name: '시계 타이머 시작' },
     alts: {},                   // { slotId: exId } 마지막으로 고른 대체 종목
-    // 2단계
-    testAnchorDate: null,       // 체력 검정 기준일(일요일). null이면 시작 주 일요일
-    gymDays: [1, 2, 3, 4, 5, 6],
+    testAnchorDate: null,       // 격주 턱걸이 측정 기준일(일요일). null이면 시작 주 일요일
   };
 }
 
@@ -30,17 +25,11 @@ export function defaultState() {
     schema: SCHEMA_VERSION,
     setupDone: false,
     settings: defaultSettings(),
-    tests: [],        // [{ id, date, pullups, pushups, situps, run3kSec?, mode:'manual'|'timed' }]
+    tests: [],        // [{ id, date, pullups, pushups?, situps? }] 격주 측정
     sessions: [],     // 완료 세션 [{ id, key, date, week, deload, startedAt, endedAt, entries:[{ slotId, ex, presc, sets:[{w,reps,rir}] }], results }]
     active: null,     // 진행 중 세션(복원용)
     targets: {},      // { exId: { weight, reason, date } } 다음 세션 목표
     exState: {},      // { negPullup: { stage } }
-    missions: {},     // { 'YYYY-MM-DD': { status: 'done'|'partial'|'skip', at } } 체력단련 결과(사후 기록)
-    // 2단계
-    intervals: [],    // [{ date, laps:[sec] }]
-    reschedule: {},   // { mondayStr: { passes:[{ date, key, reason, at }], applied:{ from, assign:{date:key}, skip:[key] }|null } }
-    skillLogs: [],    // [{ date, rank, sets:[{ label, reps?, sec? }] }]
-    drill: null,      // 진행 중 드릴(pttest|interval|skill) — 시각 저장으로 복원
   };
 }
 
@@ -86,6 +75,14 @@ const MIGRATIONS = {
     }
     return { ...s, missions };
   },
+  // v4 → v5: 새 루틴(체력단련은 몸풀기 — 앱에서 안 다룸) + 쓸모없는 기능 정리
+  //   체력단련 미션·스킬·인터벌·2분 모드 드릴·작전 재편성·목표·단축어·헬스장 요일 제거.
+  //   슬롯 구성이 바뀌어 기억해 둔 대체 종목 선택(alts)도 비운다.
+  4: (s) => {
+    const { missions, skillLogs, intervals, drill, reschedule, ...rest } = s;
+    const { goals, shortcut, gymDays, ...settings } = s.settings ?? {};
+    return { ...rest, settings: { ...settings, alts: {} } };
+  },
 };
 
 export function migrate(raw) {
@@ -101,7 +98,7 @@ export function migrate(raw) {
   }
   const def = defaultState();
   const out = deepFill(def, s);
-  for (const k of ['tests', 'sessions', 'intervals', 'skillLogs']) if (!Array.isArray(out[k])) out[k] = [];
+  for (const k of ['tests', 'sessions']) if (!Array.isArray(out[k])) out[k] = [];
   out.schema = SCHEMA_VERSION;
   return out;
 }

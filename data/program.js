@@ -131,63 +131,18 @@ export const NEGATIVE_STAGES = [
   { sets: 3, reps: 5, tempo: 8, label: '3×5 · 8초 하강' },
 ];
 
-// 체력단련 미션(매일 업힐 2.8km는 기록하지 않음). type: situp | pushup | skill | run | interval | rest | test
-export const CALISTHENICS = {
-  1: [{ type: 'situp' }],
-  2: [{ type: 'pushup' }],
-  3: [{ type: 'skill' }, { type: 'situp' }],
-  4: [{ type: 'run' }],
-  5: [{ type: 'pushup' }, { type: 'situp' }],
-  6: [{ type: 'skill' }, { type: 'interval', optional: true }],
-  7: [{ type: 'rest' }, { type: 'test', biweekly: true }],
-};
-
-export const MISSION_RULES = {
-  situp: { ratio: 0.6, sets: 4, rest: 60, label: '윗몸일으키기' },
-  pushup: { ratio: 0.6, sets: 5, rest: 60, label: '팔굽혀펴기' },
-};
-
-// (1단계 표기용) 기본 스킬 순서
-export const SKILL_STEPS = [
-  { name: '스캡 풀업', dose: '2×8', cue: '팔 편 채 어깨만 끌어내려 몸을 살짝 띄운다' },
-  { name: '탑 홀드', dose: '3×최대', cue: '점프로 올라가 턱을 바 위에 두고 버틴다' },
-  { name: '네거티브', dose: '2×2 (5초)', cue: '5초 동안 내려온다' },
-  { name: '데드행', dose: '1×최대', cue: '악력 — 목표 60초' },
-];
-export const SKILL_MINUTES = 10;
-
-export const INTERVAL = { reps: 6, distance: 400, walkSec: 90, divisor: 7.5, cueAt: 0.5 }; // cueAt: 200m 예상 시점(페이스의 50%)
-
 // 턱걸이 계급(정자세 최대로 판정). bars = 계급장 가로 막대 수.
-// ua1: 상체A 1번 슬롯 처방(repsFromMax: 최대 − n개), skill: SKILL_PLANS 키
+// ua1: 상체A 1번 슬롯 처방(repsFromMax: 최대 − n개)
 export const PULLUP_RANKS = [
   { name: '이병', code: 'PVT', min: 0, bars: 1,
-    ua1: { ex: 'negPullup', sets: 3, reps: [3, 3], note: '5초 하강 — 수월하면 단계 올림' }, skill: 'basic' },
+    ua1: { ex: 'negPullup', sets: 3, reps: [3, 3], note: '5초 하강 — 수월하면 단계 올림' } },
   { name: '일병', code: 'PFC', min: 3, bars: 2,
-    ua1: { ex: 'clusterPullup', sets: 6, reps: [1, 2], rest: 45, note: '1~2개씩, 실패 전에 멈춤' }, skill: 'ladder3' },
+    ua1: { ex: 'clusterPullup', sets: 6, reps: [1, 2], rest: 45, note: '1~2개씩, 실패 전에 멈춤' } },
   { name: '상병', code: 'CPL', min: 6, bars: 3,
-    ua1: { ex: 'strictPullup', sets: 4, repsFromMax: 2, note: '매 세트 2개 남기고' }, skill: 'ladder4' },
+    ua1: { ex: 'strictPullup', sets: 4, repsFromMax: 2, note: '매 세트 2개 남기고' } },
   { name: '병장', code: 'SGT', min: 10, bars: 4,
-    ua1: { ex: 'weightedPullup', sets: 4, reps: [5, 5], note: '덤벨 끼우고 4×5' }, skill: 'ladder4' },
+    ua1: { ex: 'weightedPullup', sets: 4, reps: [5, 5], note: '덤벨 끼우고 4×5' } },
 ];
-
-// 스킬 데이 계획. hold: 스톱워치로 버티는 시간 기록, ladder: 사다리 반복 수 × rounds
-export const SKILL_PLANS = {
-  basic: [
-    { id: 'scap', name: '스캡 풀업', sets: 2, reps: 8, cue: '팔 편 채 어깨만 끌어내려 몸을 살짝 띄운다' },
-    { id: 'top', name: '탑 홀드', sets: 3, hold: true, cue: '점프로 올라가 턱을 바 위에 두고 버틴다(최대)' },
-    { id: 'neg', name: '네거티브', sets: 2, reps: 2, cue: '5초 동안 내려온다' },
-    { id: 'hang', name: '데드행', sets: 1, hold: true, goalSec: 60, cue: '악력 — 목표 60초' },
-  ],
-  ladder3: [{ id: 'ladder', name: '사다리 1-2-3', ladder: [1, 2, 3], rounds: 2, cue: '1개→2개→3개, 사이 짧게 쉬고 2회 반복' }],
-  ladder4: [{ id: 'ladder', name: '사다리 1-2-3-4', ladder: [1, 2, 3, 4], rounds: 2, cue: '1→2→3→4개, 2회 반복 — 실패 전에 멈춤' }],
-};
-
-// 체력 검정 2분 모드
-export const PT_TEST = { sec: 120, cueEvery: 30, countdown: 3, items: { pushups: '팔굽혀펴기 2분', situps: '윗몸일으키기 2분' } };
-
-// 작전 재편성 패스 사유
-export const PASS_REASONS = ['당직', '훈련', '휴가', '외출·외박', '컨디션', '기타'];
 
 export const WARMUP_STEPS = [
   { pct: 0, reps: 10, label: '빈봉' },

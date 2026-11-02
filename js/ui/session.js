@@ -9,7 +9,7 @@ import { fmtClock, seoulTimeStr } from '../logic/dates.js';
 import { fmtKg } from '../logic/num.js';
 import { uid } from '../logic/schema.js';
 import { P, exOf, exName, today, weekInfo, prescText, usesWeight, setText, planFor } from './common.js';
-import { unlockAudio, beep, speak, keepAwake, runShortcut } from './fx.js';
+import { unlockAudio, beep, speak, keepAwake } from './fx.js';
 import { go, rerender } from './nav.js';
 
 function defaultDraft(e) {
@@ -41,10 +41,6 @@ const slotOf = (a, id) => a.plan.slots.find((s) => s.id === id);
 
 function startRest(a, sec) {
   a.rest = { endsAt: Date.now() + sec * 1000, total: sec, lastBeep: null, ended: false };
-  if (state.settings.shortcut.enabled && state.settings.shortcut.name) {
-    save();
-    runShortcut(state.settings.shortcut.name, sec);
-  }
 }
 
 function completeSet(i) {

@@ -1,14 +1,14 @@
-// 설정: 기본·목표·장비·증가폭·소리·단축어·백업
+// 설정: 기본·측정 기준일·장비·증가폭·소리·백업·초기화
 import { h, mount, label, stepper, toast } from './dom.js';
-import { state, save, replace, exportBackup, importBackupFile, isPersisted, requestPersist } from '../store.js';
-import { dowOf, dowKo, fmtClock, parseClock, isDateStr } from '../logic/dates.js';
+import { state, save, replace, exportBackup, importBackupFile } from '../store.js';
+import { dowOf, isDateStr } from '../logic/dates.js';
 import { testAnchor } from '../logic/pttest.js';
 import { defaultState } from '../logic/schema.js';
 import { resetWorkout, resetCounts, resetStartDate } from '../logic/reset.js';
 import { incrementFor } from '../logic/progression.js';
 import { fmtKg } from '../logic/num.js';
 import { P, exName, today } from './common.js';
-import { unlockAudio, beep, speak, shortcutUrl } from './fx.js';
+import { unlockAudio, beep, speak } from './fx.js';
 import { APP_VERSION } from '../version.js';
 import { rerender } from './nav.js';
 import { applyTheme, checkForUpdate } from './shell.js';
@@ -26,8 +26,6 @@ const incSelect = (value, onchange, extra = []) => h('select', { onchange: (e) =
 export function renderSettings(root) {
   const s = state.settings;
   const commit = (msg) => { save(); if (msg) toast(msg); };
-  const persistEl = h('span', { class: 'muted small' }, '확인 중…');
-  isPersisted().then((p) => { persistEl.textContent = p == null ? '미지원' : p ? '영구 저장 허용됨' : '허용 안 됨(브라우저가 정리할 수 있음)'; });
 
   const weightedEx = Object.entries(P.EXERCISES).filter(([, ex]) => ['accessory', 'assist'].includes(ex.kind));
 
@@ -48,31 +46,13 @@ export function renderSettings(root) {
         ['dark', 'light'].map((t) => h('button', { class: `chip${s.theme === t ? ' on' : ''}`, 'data-testid': `theme-${t}`, onclick: () => { s.theme = t; applyTheme(); commit(); rerender(); } },
           h('span', { class: 'en' }, t === 'dark' ? 'NIGHT' : 'DAY'), t === 'dark' ? '야간(다크)' : '주간(라이트)')))),
 
-    h('div', { class: 'card' }, label('OBJECTIVE'),
-      h('div', { class: 'grid2' },
-        field('턱걸이 목표', h('input', { type: 'number', inputmode: 'numeric', value: s.goals.pullups ?? '', onchange: (e) => { s.goals.pullups = e.target.value === '' ? null : +e.target.value; commit('저장'); } })),
-        field('팔굽 목표', h('input', { type: 'number', inputmode: 'numeric', value: s.goals.pushups ?? '', onchange: (e) => { s.goals.pushups = e.target.value === '' ? null : +e.target.value; commit('저장'); } })),
-        field('윗몸 목표', h('input', { type: 'number', inputmode: 'numeric', value: s.goals.situps ?? '', onchange: (e) => { s.goals.situps = e.target.value === '' ? null : +e.target.value; commit('저장'); } })),
-        field('3km 목표', h('input', { inputmode: 'numeric', value: fmtClock(s.goals.run3kSec), onchange: (e) => {
-          const v = parseClock(e.target.value);
-          if (v == null) { e.target.value = fmtClock(s.goals.run3kSec); return toast('m:ss 형식(예: 12:30)'); }
-          s.goals.run3kSec = v; commit('저장');
-        } }))),
-      h('div', { class: 'muted small' }, `400m 목표 페이스 = 3km 목표 ÷ 7.5 = ${fmtClock(Math.round(s.goals.run3kSec / 7.5))}`)),
-
-    h('div', { class: 'card' }, label('SCHEDULE'),
-      field('체력 검정 기준일(일요일) — 14일마다', h('input', { type: 'date', value: testAnchor(s) ?? '', 'data-testid': 'anchor', onchange: (e) => {
+    h('div', { class: 'card' }, label('PULL-UP TEST'),
+      field('턱걸이 측정 기준일(일요일) — 14일마다', h('input', { type: 'date', value: testAnchor(s) ?? '', 'data-testid': 'anchor', onchange: (e) => {
         const v = e.target.value;
         if (!isDateStr(v) || dowOf(v) !== 7) { e.target.value = testAnchor(s) ?? ''; return toast('일요일만 선택할 수 있습니다'); }
         s.testAnchorDate = v; commit('저장');
       } })),
-      h('div', { class: 'muted small' }, s.testAnchorDate ? '' : '미설정 — 시작 주의 일요일 기준'),
-      h('div', { class: 'field', style: 'margin-top:10px' }, h('span', null, '헬스장 가능 요일(작전 재편성)'),
-        h('div', { class: 'chips', style: 'grid-template-columns:repeat(7,1fr)' }, [1, 2, 3, 4, 5, 6, 7].map((d) => h('button', {
-          class: `chip${s.gymDays.includes(d) ? ' on' : ''}`, 'aria-pressed': String(s.gymDays.includes(d)), onclick: () => {
-            s.gymDays = s.gymDays.includes(d) ? s.gymDays.filter((x) => x !== d) : [...s.gymDays, d].sort();
-            commit(); rerender();
-          } }, dowKo(d)))))),
+      h('div', { class: 'muted small' }, s.testAnchorDate ? '' : '미설정 — 시작 주의 일요일 기준')),
 
     h('div', { class: 'card' }, label('BAR & PLATES'),
       h('div', { class: 'field' }, h('span', null, '봉 무게'), stepper({ value: s.bar, step: 2.5, min: 0, max: 30, unit: 'kg', label: '봉', onChange: (v) => { s.bar = v; commit(); } })),
@@ -107,12 +87,6 @@ export function renderSettings(root) {
         if (s.voice) setTimeout(() => speak('휴식 종료'), 3000);
       } }, '소리 테스트')),
 
-    h('div', { class: 'card' }, label('LOCK-SCREEN TIMER'),
-      h('p', { class: 'muted small' }, '휴식 시작 시 단축어 앱을 호출해 시계 앱 타이머를 켭니다(잠금화면에서도 울림). 단축어를 먼저 만들어야 합니다 — README 참고.'),
-      sw('휴식 시작 시 단축어 호출', s.shortcut.enabled, (v) => { s.shortcut.enabled = v; commit(); }, 'shortcut-toggle'),
-      field('단축어 이름', h('input', { value: s.shortcut.name, onchange: (e) => { s.shortcut.name = e.target.value.trim(); commit('저장'); } })),
-      h('a', { class: 'btn block', href: shortcutUrl(s.shortcut.name, 90) }, '단축어 테스트(90초)')),
-
     h('div', { class: 'card' }, label('BACKUP'),
       h('p', { class: 'muted small' }, '홈 화면 앱과 Safari는 저장소가 따로입니다. 주기적으로 백업 파일을 파일 앱/메일 등에 보관하세요.'),
       h('div', { class: 'grid2' },
@@ -129,9 +103,7 @@ export function renderSettings(root) {
             replace(next); applyTheme(); toast('불러왔습니다'); location.hash = '#today';
           } catch (err) { toast(`실패: ${err.message}`); }
           e.target.value = '';
-        } }))),
-      h('div', { class: 'spread', style: 'margin-top:10px' }, h('span', { class: 'small' }, '저장소 영구 보관'), persistEl),
-      h('button', { class: 'btn sm block', style: 'margin-top:6px', onclick: async () => { const r = await requestPersist(); toast(r ? '영구 저장 허용됨' : '허용되지 않음(홈 화면 앱에서 다시 시도)'); rerender(); } }, '영구 저장 요청')),
+        } })))),
 
     h('div', { class: 'card' }, label('RESET'),
       h('button', { class: 'btn danger block', 'data-testid': 'reset-open', onclick: resetDialog }, '운동 초기화'),
@@ -147,10 +119,10 @@ export function renderSettings(root) {
       h('button', { class: 'btn block', style: 'margin-top:8px', onclick: () => checkForUpdate(true) }, '업데이트 확인')));
 }
 
-// 운동 초기화: 지울 기록을 고르고(기본: 헬스 + 체력단련), 헬스 기록을 지우면 시작일(1주차)도 다시 정한다
+// 운동 초기화: 지울 기록을 고르고(기본: 헬스 기록), 헬스 기록을 지우면 시작일(1주차)도 다시 정한다
 function resetDialog() {
   const c = resetCounts(state);
-  const opt = { gym: true, pt: true, tests: false, startDate: resetStartDate(state.settings.startDate, today()) };
+  const opt = { gym: true, tests: false, startDate: resetStartDate(state.settings.startDate, today()) };
   const startField = h('label', { class: 'field', style: 'margin:0 0 10px 38px' }, h('span', null, '시작일(월요일) — 이 주가 1주차'),
     h('input', { type: 'date', value: opt.startDate, 'data-testid': 'reset-start', onchange: (e) => { opt.startDate = e.target.value; } }));
   const box = (key, title, sub, testid) => h('label', { class: 'check', style: 'align-items:flex-start;padding:6px 0' },
@@ -163,10 +135,9 @@ function resetDialog() {
     label('RESET'),
     h('h3', null, '운동 초기화'),
     h('p', { class: 'muted small' }, '콜사인·장비·증가폭·목표·소리 같은 설정은 그대로 두고, 고른 기록만 지웁니다.'),
-    box('gym', '헬스 기록', `세션 ${c.sessions}개 · 다음 목표 무게 · 네거티브 단계 · 작전 재편성`, 'reset-gym'),
+    box('gym', '헬스 기록', `세션 ${c.sessions}개 · 다음 목표 무게 · 네거티브 단계`, 'reset-gym'),
     startField,
-    box('pt', '체력단련 기록', `결과 ${c.missions}일 · 스킬 ${c.skillLogs}회 · 인터벌 ${c.intervals}회`, 'reset-pt'),
-    box('tests', '체력 검정 기록', `${c.tests}개 — 지우면 60% 개수·턱걸이 계급을 정하려고 검정을 다시 입력해야 해요`, 'reset-tests'),
+    box('tests', '턱걸이 측정 기록', `${c.tests}개 — 지우면 로드맵 단계를 정하려고 다시 측정해 기록해야 해요`, 'reset-tests'),
     h('button', { class: 'btn block', style: 'margin:8px 0', onclick: async () => {
       const r = await exportBackup();
       if (r !== 'cancelled') toast(r === 'shared' ? '백업 공유 완료' : '백업 파일 저장');
@@ -174,7 +145,7 @@ function resetDialog() {
     h('div', { class: 'grid2' },
       h('button', { class: 'btn', onclick: () => dlg.close() }, '취소'),
       h('button', { class: 'btn danger', 'data-testid': 'reset-go', onclick: () => {
-        if (!opt.gym && !opt.pt && !opt.tests) return toast('지울 기록을 고르세요');
+        if (!opt.gym && !opt.tests) return toast('지울 기록을 고르세요');
         if (opt.gym && (!isDateStr(opt.startDate) || dowOf(opt.startDate) !== 1)) return toast('시작일은 월요일이어야 합니다');
         if (!confirm('고른 기록을 지웁니다. 되돌릴 수 없어요. 계속할까요?')) return;
         replace(resetWorkout(state, opt));

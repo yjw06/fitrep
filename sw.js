@@ -1,5 +1,5 @@
 // FITREP 서비스 워커 — 앱 셸 캐시. 배포마다 CACHE_VERSION을 올린다(js/version.js와 같게).
-const CACHE_VERSION = '2.3.0';
+const CACHE_VERSION = '3.0.0';
 const CACHE = `fitrep-${CACHE_VERSION}`;
 const SHELL = [
   './',
@@ -13,15 +13,13 @@ const SHELL = [
   './icons/icon-512.png',
   './js/app.js',
   './js/logic/dates.js',
-  './js/logic/interval.js',
-  './js/logic/missions.js',
   './js/logic/num.js',
   './js/logic/plan.js',
   './js/logic/progression.js',
-  './js/logic/reset.js',
   './js/logic/pttest.js',
   './js/logic/rank.js',
-  './js/logic/reschedule.js',
+  './js/logic/reset.js',
+  './js/logic/schedule.js',
   './js/logic/schema.js',
   './js/logic/stats.js',
   './js/logic/warmup.js',
@@ -30,16 +28,12 @@ const SHELL = [
   './js/ui/common.js',
   './js/ui/dom.js',
   './js/ui/fx.js',
-  './js/ui/interval.js',
   './js/ui/log.js',
   './js/ui/nav.js',
-  './js/ui/pttest.js',
-  './js/ui/reschedule.js',
   './js/ui/session.js',
   './js/ui/settings.js',
   './js/ui/setup.js',
   './js/ui/shell.js',
-  './js/ui/skill.js',
   './js/ui/summary.js',
   './js/ui/test.js',
   './js/ui/today.js',
