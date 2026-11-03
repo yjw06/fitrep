@@ -4,7 +4,7 @@ import { state, save } from '../store.js';
 import { nextNegStage } from '../logic/progression.js';
 import { fmtClock, shortDate } from '../logic/dates.js';
 import { fmtKg } from '../logic/num.js';
-import { P, exOf, exName, usesWeight } from './common.js';
+import { P, exOf, exName, usesWeight, sessionDef } from './common.js';
 import { go } from './nav.js';
 
 const ARROW = { increase: ['▲', 'up'], stall: ['▼', 'down'], decrease: ['▼', 'down'] };
@@ -12,7 +12,7 @@ const ARROW = { increase: ['▲', 'up'], stall: ['▼', 'down'], decrease: ['▼
 export function renderSummary(root, id) {
   const rec = state.sessions.find((s) => s.id === id);
   if (!rec) return go('#today');
-  const def = P.SESSIONS[rec.key];
+  const def = sessionDef(rec.key);
   const sets = rec.entries.reduce((a, e) => a + e.sets.length, 0);
   const dur = (rec.endedAt - rec.startedAt) / 1000;
   const maxStage = P.NEGATIVE_STAGES.length - 1;
@@ -28,7 +28,7 @@ export function renderSummary(root, id) {
         h('input', { type: 'checkbox', checked: rec.negEasy, 'data-testid': 'neg-easy', onchange: (e) => {
           rec.negEasy = e.target.checked;
           const st = nextNegStage(rec.negBase, rec.negEasy, maxStage);
-          state.exState.negPullup = { stage: st };
+          state.exState.negative_pullup = { stage: st };
           info.textContent = `다음: ${P.NEGATIVE_STAGES[st].label}`;
           save();
         } }), rec.negBase >= maxStage ? '수월했음(최종 단계)' : '수월했음 → 다음 단계'), info];
@@ -48,7 +48,7 @@ export function renderSummary(root, id) {
   mount(root,
     h('div', { class: 'card hud' },
       h('div', { class: 'spread' }, label('AFTER ACTION REPORT'), stamp()),
-      h('h2', null, `${def.name} — ${def.title}`),
+      h('h2', null, def.name),
       h('div', { class: 'row wrap' },
         h('span', { class: 'badge' }, shortDate(rec.date)),
         h('span', { class: 'badge' }, `WEEK ${rec.week}`),

@@ -15,7 +15,6 @@ import { applyTheme, checkForUpdate } from './shell.js';
 
 const INC_CHOICES = [0.5, 1, 1.25, 2, 2.5, 4, 5, 10];
 const ALL_PLATES = [25, 20, 15, 10, 5, 2.5, 2, 1.25, 1, 0.5];
-const EQUIP = [['barbell', '바벨'], ['smith', '스미스'], ['dumbbell', '덤벨'], ['machine', '머신'], ['cable', '케이블'], ['assist', '어시스트(보조 −)']];
 
 const field = (text, el) => h('label', { class: 'field' }, h('span', null, text), el);
 const sw = (text, checked, onchange, testid) => h('label', { class: 'switch' }, h('span', null, text),
@@ -27,7 +26,7 @@ export function renderSettings(root) {
   const s = state.settings;
   const commit = (msg) => { save(); if (msg) toast(msg); };
 
-  const weightedEx = Object.entries(P.EXERCISES).filter(([, ex]) => ['accessory', 'assist'].includes(ex.kind));
+  const weightedEx = Object.entries(P.EXERCISES).filter(([, ex]) => !ex.retired && ['main', 'accessory', 'isolation', 'assist'].includes(ex.kind));
 
   mount(root,
     h('div', { style: 'margin:4px 2px 10px' }, label('CONFIG'), h('div', { style: 'font-size:20px;font-weight:700' }, '설정')),
@@ -65,17 +64,18 @@ export function renderSettings(root) {
           } }), `${p}kg`))))),
 
     h('div', { class: 'card' }, label('INCREMENTS'),
+      h('p', { class: 'muted small' }, '바벨·스미스 종목은 루틴 파일의 증가폭을 씁니다. 아래는 루틴에서 "한 칸·한 단계"로 적힌 종목의 기준입니다.'),
       h('div', { class: 'grid2' },
-        field('메인 상체', incSelect(s.inc.mainUpper, (v) => { s.inc.mainUpper = +v; commit(); })),
-        field('메인 하체', incSelect(s.inc.mainLower, (v) => { s.inc.mainLower = +v; commit(); })),
-        EQUIP.map(([k, t]) => field(t, incSelect(s.inc[k], (v) => { s.inc[k] = +v; commit(); rerender(); })))),
+        field('머신·케이블 한 칸', incSelect(s.inc.machine, (v) => { s.inc.machine = +v; commit(); rerender(); })),
+        field('덤벨 한 단계(한 손)', incSelect(s.inc.dumbbell, (v) => { s.inc.dumbbell = +v; commit(); rerender(); })),
+        field('어시스트 보조 한 칸', incSelect(s.inc.assist, (v) => { s.inc.assist = +v; commit(); rerender(); }))),
       h('details', null, h('summary', { style: 'min-height:44px;display:flex;align-items:center' }, '종목별 증가폭'),
         weightedEx.map(([id, ex]) => {
           const o = s.incOverride[id];
           return field(exName(id), incSelect(o, (v) => {
             if (v === '') delete s.incOverride[id]; else s.incOverride[id] = +v;
             commit();
-          }, [h('option', { value: '', selected: o == null }, `기본 (${fmtKg(incrementFor(id, { ...ex }, { ...s, incOverride: {} }))}kg)`)]));
+          }, [h('option', { value: '', selected: o == null }, `기본 (${fmtKg(incrementFor(id, ex, { ...s, incOverride: {} }))}kg)`)]));
         }))),
 
     h('div', { class: 'card' }, label('AUDIO'),

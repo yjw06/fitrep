@@ -4,7 +4,7 @@ import { state, save } from '../store.js';
 import { shortDate, fmtClock } from '../logic/dates.js';
 import { exerciseHistory, loggedExercises } from '../logic/stats.js';
 import { fmtKg } from '../logic/num.js';
-import { P, exOf, exName, usesWeight, setText } from './common.js';
+import { exOf, exName, usesWeight, setText, sessionDef } from './common.js';
 import { lineChart } from './chart.js';
 import { rerender } from './nav.js';
 
@@ -29,7 +29,7 @@ function editSet(entry, k) {
 }
 
 function sessionCard(rec) {
-  const def = P.SESSIONS[rec.key];
+  const def = sessionDef(rec.key);
   const open = ui.open === rec.id;
   const sets = rec.entries.reduce((a, e) => a + e.sets.length, 0);
   const head = h('div', { class: 'log-day', onclick: () => { ui.open = open ? null : rec.id; rerender(); } },

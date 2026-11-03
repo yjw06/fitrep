@@ -1,12 +1,14 @@
 // 판정 규칙 (순수 함수)
 import { roundTo } from './num.js';
 
-// 종목별 증가폭: 개별 설정 > 메인(상체/하체) > 장비별 기본
+// 종목별 증가폭: 개별 설정 > 루틴 파일 kg > 루틴의 '한 칸/한 단계'(설정의 머신·덤벨 값) > 어시스트 한 칸
 export function incrementFor(exId, ex, settings) {
   const o = settings.incOverride?.[exId];
   if (o > 0) return o;
-  const inc = settings.inc;
-  if (ex.kind === 'main') return ex.region === 'lower' ? inc.mainLower : inc.mainUpper;
+  if (ex.incKg > 0) return ex.incKg;
+  const inc = settings.inc ?? {};
+  if (ex.incStep) return inc[ex.incStep] ?? 5;
+  if (ex.kind === 'assist') return inc.assist ?? 5;
   return inc[ex.equip] ?? 2.5;
 }
 
@@ -44,12 +46,11 @@ export function isStalled(history) {
  * @param {Array}  p.history  이전 비정비 세션 [{ weight, totalReps }] 오래된→최신
  * @param {boolean} p.deload
  * @returns {{ exId, action, weight, prev, reason }}
- *   action: increase | decrease | hold | stall | none | check | note | skip
+ *   action: increase | hold | stall | check | note | skip
  */
 export function judgeExercise({ exId, ex, presc, sets, settings, history = [], deload = false }) {
   const base = { exId, action: 'hold', weight: null, prev: null, reason: '' };
   if (!sets?.length) return { ...base, action: 'skip', reason: '기록 없음 — 목표 유지' };
-  if (ex.kind === 'plyo') return { ...base, action: 'none', reason: '증량 판정 없음' };
   if (ex.kind === 'negative') return { ...base, action: 'check', reason: '수월했으면 체크 → 다음 단계' };
 
   const top = topSet(sets, ex.kind);
@@ -63,7 +64,7 @@ export function judgeExercise({ exId, ex, presc, sets, settings, history = [], d
 
   if (ex.kind === 'bodyweight') {
     return allTop
-      ? { ...res, action: 'note', reason: '전 세트 윗끝 — 하강을 느리게 해 난이도 ↑' }
+      ? { ...res, action: 'note', reason: `전 세트 ${hi}회 — 다음 측정에서 단계 확인` }
       : { ...res, reason: '윗끝 미달 — 같은 목표 유지' };
   }
 
@@ -78,7 +79,7 @@ export function judgeExercise({ exId, ex, presc, sets, settings, history = [], d
     return { ...res, reason: `${presc.sets}×${hi} 미달 — 보조 무게 유지` };
   }
 
-  // main / accessory
+  // main / accessory / isolation (RIR 확인은 메인만)
   let pass = allTop;
   let why = complete ? '' : '세트 미완료';
   if (pass && ex.kind === 'main' && presc.rir) {
@@ -103,4 +104,22 @@ export function judgeExercise({ exId, ex, presc, sets, settings, history = [], d
 
 export function nextNegStage(stage, easy, max) {
   return easy ? Math.min(stage + 1, max) : stage;
+}
+
+/**
+ * 1주차 규칙: 시작 무게로 정해진 반복을 했는데 3개 넘게 남으면(RIR > rule.rir) 다음 세트에 올린다.
+ * 올리는 폭 = 종목 증가폭을 루틴의 상체/하체 범위(bumpKg)에 맞춘 값. 어시스트는 보조 무게를 내린다.
+ * @returns {{ w, text } | null}
+ */
+export function firstWeekBump({ week, exId, ex, presc, set, settings, rule }) {
+  if (week !== 1 || !rule || set.rir == null || set.rir <= rule.rir || (set.reps ?? 0) < presc.reps[0]) return null;
+  const step = incrementFor(exId, ex, settings);
+  if (ex.kind === 'assist') {
+    if (!(set.w > 0)) return null;
+    return { w: Math.max(0, roundTo(set.w - step, 0.5)), text: `3개 넘게 남음 → 다음 세트 보조 −${step}kg` };
+  }
+  if (!['main', 'accessory', 'isolation'].includes(ex.kind)) return null;
+  const [lo, hi] = rule.bumpKg?.[ex.region] ?? [step, step];
+  const up = Math.min(hi, Math.max(lo, step));
+  return { w: roundTo((set.w ?? 0) + up, 0.25), text: `3개 넘게 남음 → 다음 세트 +${up}kg (1주차 ${lo}~${hi}kg)` };
 }

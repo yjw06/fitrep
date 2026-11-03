@@ -1,6 +1,6 @@
 // 저장 스키마 + 마이그레이션 (순수 함수). store.js가 localStorage 입출력을 맡는다.
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 export const APP_ID = 'fitrep';
 
 export function defaultSettings() {
@@ -13,9 +13,9 @@ export function defaultSettings() {
     deloadEvery: 5,             // 5·10·15…주차 정비 주간
     bar: 20,
     plates: [20, 15, 10, 5, 2.5, 1.25],
-    inc: { mainUpper: 2.5, mainLower: 5, barbell: 2.5, smith: 2.5, dumbbell: 2, machine: 5, cable: 5, assist: 5 },
-    incOverride: {},            // { exId: kg } 종목별 증가폭
-    alts: {},                   // { slotId: exId } 마지막으로 고른 대체 종목
+    inc: { machine: 5, dumbbell: 2, assist: 5 }, // 루틴의 '머신·케이블 한 칸'·'덤벨 한 단계'·어시스트 한 칸
+    incOverride: {},            // { exId: kg } 종목별 증가폭(루틴 파일 값보다 우선)
+    alts: {},                   // { 'slotId.itemIdx': exId } 마지막으로 고른 대체 종목
     testAnchorDate: null,       // 격주 턱걸이 측정 기준일(일요일). null이면 시작 주 일요일
   };
 }
@@ -83,6 +83,37 @@ const MIGRATIONS = {
     const { goals, shortcut, gymDays, ...settings } = s.settings ?? {};
     return { ...rest, settings: { ...settings, alts: {} } };
   },
+  // v5 → v6: 주 5회 부위별 루틴(JSON). 종목 id를 루틴 파일 id로 바꿔 기록·다음 목표·네거티브 단계를 이어가고,
+  //   증가폭은 종목별 값(루틴 파일)이 기본이 되어 장비 기본값은 머신·덤벨·어시스트만 남긴다.
+  5: (s) => {
+    const id = (x) => RENAMED[x] ?? x;
+    const keys = (o) => Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [id(k), v]));
+    const sessions = (s.sessions ?? []).map((ss) => ({
+      ...ss,
+      entries: (ss.entries ?? []).map((e) => ({ ...e, ex: id(e.ex) })),
+      results: (ss.results ?? []).map((r) => ({ ...r, exId: id(r.exId) })),
+    }));
+    const active = s.active?.plan ? {
+      ...s.active,
+      plan: { ...s.active.plan, entries: s.active.plan.entries.map((e) => ({ ...e, ex: id(e.ex), options: (e.options ?? []).map(id), ...(e.prescs ? { prescs: keys(e.prescs) } : {}) })) },
+    } : s.active;
+    const inc = s.settings?.inc ?? {};
+    return {
+      ...s, sessions, active, targets: keys(s.targets), exState: keys(s.exState),
+      settings: { ...s.settings, incOverride: keys(s.settings?.incOverride), inc: { machine: inc.machine ?? 5, dumbbell: inc.dumbbell ?? 2, assist: inc.assist ?? 5 }, alts: {} },
+    };
+  },
+};
+
+// 이전 루틴 종목 id → 루틴 파일 id (v6)
+export const RENAMED = {
+  negPullup: 'negative_pullup', bench: 'bench_press', smithBench: 'smith_bench_press', assistPullup: 'assisted_pullup',
+  tbarRow: 't_bar_row', dbLateral: 'db_lateral_raise', ezCurl: 'ez_bar_curl', backSquat: 'back_squat', rdl: 'romanian_deadlift',
+  legPress: 'leg_press', smithCalf: 'smith_calf_raise', latPulldown: 'wide_lat_pulldown', inclineMachine: 'incline_press_machine',
+  cableRow: 'cable_seated_row', lowPulleyRow: 'low_pulley_row', dbShoulder: 'db_shoulder_press', shoulderMachine: 'shoulder_press_machine',
+  cableLateral: 'cable_lateral_raise', rearDelt: 'rear_delt_machine', ohExtension: 'cable_overhead_extension', inclineCurl: 'incline_db_curl',
+  bayesianCurl: 'cable_bayesian_curl', legCurl: 'leg_curl', pallof: 'cable_pallof_press',
+  clusterPullup: 'cluster_pullup', strictPullup: 'strict_pullup', weightedPullup: 'weighted_pullup',
 };
 
 export function migrate(raw) {

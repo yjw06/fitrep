@@ -4,17 +4,26 @@ import { state, save } from '../store.js';
 import { shortDate, isDateStr } from '../logic/dates.js';
 import { testAnchor, isTestDay, nextTestDate, latestTestValues, upsertTest, testSeries } from '../logic/pttest.js';
 import { uid } from '../logic/schema.js';
-import { P, today, pullupRank } from './common.js';
+import { P, today, pullupStage, prescText } from './common.js';
+import { roadmapItem } from '../logic/roadmap.js';
+import { prescribe } from '../logic/plan.js';
 import { lineChart } from './chart.js';
 import { rerender } from './nav.js';
 
+// 로드맵 단계 + 이 단계에서 바뀌는 1번 종목(화·금)
 function stageCard() {
-  const r = pullupRank();
-  return h('div', { class: 'card hud', 'data-testid': 'rank-card' },
+  const r = pullupStage();
+  const days = P.SESSION_ORDER.filter((k) => P.SESSIONS[k].slots[0]?.pullupSlot);
+  return h('div', { class: 'card hud', 'data-testid': 'stage-card' },
     label('PULL-UP ROADMAP'),
-    h('div', { style: 'font-size:22px;font-weight:800;margin-top:4px' }, `턱걸이 ${r.rank.name}`),
-    h('div', { class: 'small' }, `정자세 최대 ${r.max ?? '—'}개`, r.next ? h('span', { class: 'muted' }, ` · 다음 단계까지 ${r.toNext}개`) : h('span', { class: 'muted' }, ' · 마지막 단계')),
-    h('div', { class: 'small', style: 'margin-top:8px' }, `상체A 1번: ${P.EXERCISES[r.rank.ua1.ex].name}`));
+    h('div', { style: 'font-size:22px;font-weight:800;margin-top:4px' }, `${r.stage.stage}단계 `, h('span', { class: 'muted small' }, `정자세 ${r.stage.label}`)),
+    h('div', { class: 'small' }, `정자세 최대 ${r.max ?? '—'}개`, h('span', { class: 'muted' }, r.next ? ` · 다음 단계까지 ${r.toNext}개` : ' · 마지막 단계')),
+    days.map((k) => {
+      const it = roadmapItem(r.stage, k, r.max);
+      const ex = P.EXERCISES[it.ex];
+      const pr = prescribe(it, ex, { week: 2, deloadEvery: 0, negStage: state.exState.negative_pullup?.stage ?? 0, negStages: P.NEGATIVE_STAGES });
+      return h('div', { class: 'small', style: 'margin-top:6px' }, h('b', null, `${P.SESSIONS[k].short} 1번 `), `${ex.name} ${prescText(pr)}`);
+    }));
 }
 
 export function renderTest(root) {

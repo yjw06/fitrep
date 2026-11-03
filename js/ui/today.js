@@ -1,11 +1,11 @@
-// 금일 임무: 측정일 카드 + 세션 카드(요일 배치, 수동 선택 + 규칙 경고) + 이번 주 진행 4칸
+// 금일 임무: 측정일 카드 + 세션 카드(요일 배치, 수동 선택 + 규칙 경고) + 이번 주 진행
 import { h, mount, label, stamp } from './dom.js';
 import { state } from '../store.js';
 import { dowOf, shortDate, addDays, mondayOf } from '../logic/dates.js';
 import { testAnchor, isTestDay } from '../logic/pttest.js';
 import { pickWarnings } from '../logic/schedule.js';
 import { weekDone } from '../logic/stats.js';
-import { P, today, weekInfo, exName, prescText, planFor, pullupRank } from './common.js';
+import { P, today, weekInfo, exName, prescText, planFor, pullupStage, sessionDef } from './common.js';
 import { startSession } from './session.js';
 import { rerender, go } from './nav.js';
 
@@ -15,18 +15,18 @@ function sessionCard(date, wi) {
   if (state.active) {
     return h('div', { class: 'card hud active-card' },
       label('MISSION IN PROGRESS'),
-      h('h2', null, `${P.SESSIONS[state.active.key].name} — 작전 진행 중`),
+      h('h2', null, `${sessionDef(state.active.key).name} — 작전 진행 중`),
       h('button', { class: 'btn primary block big', onclick: () => go('#session') }, '작전 복귀'));
   }
   const planned = P.WEEK_PLAN[dowOf(date)] ?? null;
   if (picked && picked.date !== date) picked = null;
   const key = picked?.key ?? planned;
 
-  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': '세션 선택' },
+  const chips = h('div', { class: 'chips', style: `grid-template-columns:repeat(${P.SESSION_ORDER.length},1fr)`, role: 'group', 'aria-label': '세션 선택' },
     P.SESSION_ORDER.map((k) => h('button', {
       type: 'button', class: `chip${k === key ? ' on' : ''}`, 'data-testid': `pick-${k}`,
       onclick: () => { picked = { date, key: k === key && picked?.key ? null : k }; rerender(); },
-    }, h('span', { class: 'en' }, P.SESSIONS[k].code), P.SESSIONS[k].name)));
+    }, h('span', { class: 'en' }, P.SESSIONS[k].code), P.SESSIONS[k].short)));
 
   if (!key) {
     return h('div', { class: 'card hud', 'data-testid': 'session-card' },
@@ -40,23 +40,23 @@ function sessionCard(date, wi) {
   const plan = planFor(key, wi);
   const done = state.sessions.some((s) => s.date === date && s.key === key);
   const warns = done ? [] : pickWarnings({ key, date, sessions: state.sessions, defs: P.SESSIONS });
-  const r = pullupRank();
+  const r = pullupStage();
   return h('div', { class: 'card hud', 'data-testid': 'session-card' },
     h('div', { class: 'spread' }, label(`MISSION · ${def.code}`), done && stamp()),
-    h('h2', null, `${def.name} — ${def.title}`),
+    h('h2', null, def.name),
     h('div', { class: 'row wrap' },
       h('span', { class: 'badge' }, `WEEK ${wi.week}`),
       h('span', { class: 'badge' }, `약 ${def.minutes}분`),
       wi.deload && h('span', { class: 'badge amber' }, '정비 주간 · 세트 절반'),
       wi.week === 1 && h('span', { class: 'badge' }, '탐색 주 · RIR 3'),
       picked?.key && planned !== key && h('span', { class: 'badge od' }, '수동 선택')),
-    def.note && h('p', { class: 'muted small' }, def.note),
+    def.notes.length > 0 && h('div', { class: 'muted small', style: 'margin-top:6px' }, def.notes.map((n) => h('div', null, `· ${n}`))),
     h('ol', { class: 'small', style: 'padding-left:20px;margin:10px 0' },
       plan.slots.map((slot) => {
         const es = plan.entries.filter((e) => e.slotId === slot.id);
         const isPull = def.slots.find((s) => s.id === slot.id)?.pullupSlot;
         return h('li', null, es.map((e, i) => [i ? ' → ' : '', exName(e.ex), h('span', { class: 'muted' }, ` ${prescText(e.presc)}`)]),
-          isPull && h('span', { class: 'badge', style: 'margin-left:6px' }, `턱걸이 ${r.rank.name}`),
+          isPull && h('span', { class: 'badge', style: 'margin-left:6px' }, `턱걸이 ${r.stage.stage}단계`),
           es.length > 1 && h('span', { class: 'ss-tag' }, ' SUPERSET'));
       })),
     warns.length > 0 && h('div', { class: 'warn', 'data-testid': 'pick-warn' }, warns.map((w) => h('div', null, `⚠ ${w}`))),
@@ -81,12 +81,12 @@ function weekCard(date) {
   const done = weekDone(state.sessions, date);
   const mon = mondayOf(date);
   return h('div', { class: 'card' },
-    h('div', { class: 'spread' }, label('THIS WEEK'), h('span', { class: 'muted small mono' }, `${done.size}/4`)),
-    h('div', { class: 'week4', style: 'margin-top:8px', 'data-testid': 'week4' },
+    h('div', { class: 'spread' }, label('THIS WEEK'), h('span', { class: 'muted small mono' }, `${P.SESSION_ORDER.filter((k) => done.has(k)).length}/${P.SESSION_ORDER.length}`)),
+    h('div', { class: 'week-cells', style: `margin-top:8px;grid-template-columns:repeat(${P.SESSION_ORDER.length},1fr)`, 'data-testid': 'week-cells' },
       P.SESSION_ORDER.map((k) => {
         const d = addDays(mon, P.SESSIONS[k].dow - 1);
         return h('div', { class: `${done.has(k) ? 'done' : ''}${d === date ? ' today' : ''}` },
-          h('span', { class: 'en' }, P.SESSIONS[k].code), P.SESSIONS[k].name,
+          h('span', { class: 'en' }, P.SESSIONS[k].code), P.SESSIONS[k].short,
           h('div', { class: 'small' }, done.has(k) ? '완료' : shortDate(d).replace(/^\d+\//, '')));
       })));
 }

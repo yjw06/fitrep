@@ -67,6 +67,7 @@ export function stepper({ value, step = 1, min = 0, max = 9999, unit = '', label
 }
 
 export function rirPicker(value, onChange, testid) {
+  // 4는 '4개 이상 남음'(1주차엔 다음 세트 무게를 올리는 기준)
   const btns = [0, 1, 2, 3, 4].map((n) => h('button', {
     type: 'button', class: value === n ? 'on' : '', 'aria-pressed': String(value === n),
     onclick: () => {
@@ -75,7 +76,7 @@ export function rirPicker(value, onChange, testid) {
       btns.forEach((b, i) => { b.classList.toggle('on', i === nv); b.setAttribute('aria-pressed', String(i === nv)); });
       onChange(nv);
     },
-  }, n));
+  }, n === 4 ? '4+' : n));
   return h('div', { class: 'rir', 'data-testid': testid }, h('span', { class: 'lab' }, 'RIR'), btns);
 }
 

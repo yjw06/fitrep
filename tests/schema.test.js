@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { migrate, defaultState, makeBackup, readBackup, SCHEMA_VERSION } from '../js/logic/schema.js';
+import { migrate, defaultState, makeBackup, readBackup, SCHEMA_VERSION, RENAMED } from '../js/logic/schema.js';
+import { EXERCISES } from '../data/program.js';
 import { exerciseHistory, weekDone, judgeHistory } from '../js/logic/stats.js';
 
 test('마이그레이션: 빈 값/부분 값 채움, 미래 버전 거부', () => {
   assert.equal(migrate(null).schema, SCHEMA_VERSION);
-  const s = migrate({ settings: { callsign: 'EAGLE', inc: { dumbbell: 2.5 } }, sessions: 'x' });
+  const s = migrate({ schema: SCHEMA_VERSION, settings: { callsign: 'EAGLE', inc: { dumbbell: 2.5 } }, sessions: 'x' });
   assert.equal(s.settings.callsign, 'EAGLE');
   assert.equal(s.settings.inc.dumbbell, 2.5);
   assert.equal(s.settings.inc.machine, 5);
@@ -54,8 +55,9 @@ test('v1 → 현재: 헬스 기록·검정·설정 유지, 빠진 기능 저장�
   assert.equal(s.settings.startDate, '2026-11-02');
   assert.deepEqual(s.settings.alts, {}); // 슬롯 구성이 바뀌어 비움
   assert.equal(s.sessions.length, 1);
-  assert.equal(s.targets.bench.weight, 62.5);
-  assert.equal(s.exState.negPullup.stage, 1);
+  assert.equal(s.sessions[0].entries[0].ex, 'bench_press');
+  assert.equal(s.targets.bench_press.weight, 62.5);
+  assert.equal(s.exState.negative_pullup.stage, 1);
   assert.equal(s.tests[0].pullups, 2);
   assertLean(s);
 });
@@ -93,4 +95,29 @@ test('v2·v4 → 현재: 체력단련·스킬·인터벌·재편성·목표·단
   assertLean(b);
   // 새로 만든 상태에도 빠진 기능 필드가 없음
   assertLean(defaultState());
+});
+
+test('v5 → v6: 종목 id를 루틴 파일 id로(기록·다음 목표·네거티브 단계·종목별 증가폭·진행 중 세션), 증가폭 기본값 정리', () => {
+  const v5 = {
+    schema: 5, setupDone: true,
+    settings: { callsign: 'EAGLE', inc: { mainUpper: 2.5, mainLower: 5, barbell: 2.5, smith: 2.5, dumbbell: 2.5, machine: 5, cable: 5, assist: 5 }, incOverride: { legPress: 10 }, alts: { 'UA2.0': 'smithBench' } },
+    sessions: [{ id: 's', key: 'UA', date: '2026-11-02', entries: [{ ex: 'bench', sets: [{ w: 60, reps: 6 }] }, { ex: 'jumpSquat', sets: [] }], results: [{ exId: 'bench', weight: 62.5 }] }],
+    targets: { bench: { weight: 62.5 }, tbarRow: { weight: 30 } },
+    exState: { negPullup: { stage: 2 } },
+    active: { key: 'UA', plan: { slots: [], entries: [{ ex: 'assistPullup', options: ['assistPullup'], sets: [] }] } },
+    tests: [{ id: 't', date: '2026-11-01', pullups: 2 }],
+  };
+  const s = migrate(v5);
+  assert.equal(s.schema, 6);
+  assert.deepEqual(s.sessions[0].entries.map((e) => e.ex), ['bench_press', 'jumpSquat']); // 새 루틴에 없는 종목은 그대로(이름은 program.js 보관)
+  assert.equal(s.sessions[0].results[0].exId, 'bench_press');
+  assert.deepEqual(Object.keys(s.targets), ['bench_press', 't_bar_row']);
+  assert.equal(s.exState.negative_pullup.stage, 2);
+  assert.deepEqual(s.settings.incOverride, { leg_press: 10 });
+  assert.deepEqual(s.settings.inc, { machine: 5, dumbbell: 2.5, assist: 5 });
+  assert.deepEqual(s.settings.alts, {});
+  assert.deepEqual(s.active.plan.entries[0].ex, 'assisted_pullup');
+  assert.equal(s.tests[0].pullups, 2);
+  // 바뀐 id와 남은 옛 id가 모두 종목 목록에 있어 이름을 보여줄 수 있음
+  for (const id of [...Object.values(RENAMED), 'jumpSquat', 'legRaise', 'seatedCalf', 'bulgarian', 'hipThrust', 'smithHipThrust']) assert.ok(EXERCISES[id], id);
 });

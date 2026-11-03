@@ -2,22 +2,23 @@
 import { h, mount, label, stepper, rirPicker, toast, $ } from './dom.js';
 import { state, save } from '../store.js';
 import { buildSteps, nextStepIndex, isStepDone, remainingSec, guard, trimTarget, effSets } from '../logic/plan.js';
-import { judgeExercise } from '../logic/progression.js';
+import { judgeExercise, firstWeekBump } from '../logic/progression.js';
 import { warmupSets } from '../logic/warmup.js';
 import { lastPerformance, judgeHistory } from '../logic/stats.js';
 import { fmtClock, seoulTimeStr } from '../logic/dates.js';
 import { fmtKg } from '../logic/num.js';
 import { uid } from '../logic/schema.js';
-import { P, exOf, exName, today, weekInfo, prescText, usesWeight, setText, planFor } from './common.js';
+import { P, exOf, exName, today, weekInfo, prescText, usesWeight, setText, planFor, sessionDef, weightLabel, slotNo } from './common.js';
 import { unlockAudio, beep, speak, keepAwake } from './fx.js';
 import { go, rerender } from './nav.js';
 
+// 무게 기본값: 다음 목표 > 지난 기록 > 루틴 시작 무게
 function defaultDraft(e) {
   const ex = exOf(e.ex);
   const target = state.targets[e.ex];
   const last = lastPerformance(state.sessions, e.ex, ex.kind);
   return {
-    w: usesWeight(ex) ? (target?.weight ?? last?.top?.w ?? 0) : 0,
+    w: usesWeight(ex) ? (target?.weight ?? last?.top?.w ?? ex.start ?? 0) : 0,
     reps: e.presc.reps[1],
     rir: e.presc.rir ? e.presc.rir[0] : null,
   };
@@ -49,7 +50,12 @@ function completeSet(i) {
   const e = a.plan.entries[i];
   const ex = exOf(e.ex);
   const d = a.draft[i];
-  e.sets.push({ w: usesWeight(ex) ? d.w : 0, reps: d.reps, rir: d.rir, at: Date.now() });
+  const set = { w: usesWeight(ex) ? d.w : 0, reps: d.reps, rir: d.rir, at: Date.now() };
+  e.sets.push(set);
+  // 1주차: 3개 넘게 남으면 다음 세트 무게를 올린다(어시스트는 보조를 내린다).
+  // 무게가 바뀌었으니 RIR은 목표로 되돌려, 다시 4+를 골라야 또 올라가게
+  const bump = firstWeekBump({ week: a.week, exId: e.ex, ex, presc: e.presc, set, settings: state.settings, rule: P.FIRST_WEEK });
+  if (bump) Object.assign(d, { w: bump.w, rir: e.presc.rir ? e.presc.rir[0] : null });
   const steps = buildSteps(a.plan, a.trim);
   const st = steps.find((s) => s.entry === i && s.set === e.sets.length - 1);
   const restAfter = st ? st.restAfter : slotOf(a, e.slotId).rest;
@@ -60,6 +66,7 @@ function completeSet(i) {
   const left = steps.some((s) => !isStepDone(a.plan, s));
   if (restAfter > 0 && left) startRest(a, restAfter);
   if (!left) toast('전 세트 완료 — 작전 종료를 누르세요');
+  else if (bump && e.sets.length < effSets(e, a.trim[e.slotId] || 0)) toast(bump.text, 3500);
   save();
   rerender();
   requestAnimationFrame(() => $('.active-card')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
@@ -81,6 +88,7 @@ function swapEx(i, exId) {
   const e = a.plan.entries[i];
   if (e.sets.length) return toast('이미 기록한 세트가 있어 바꿀 수 없습니다');
   e.ex = exId;
+  e.presc = e.prescs?.[exId] ?? e.presc; // 대체 종목이 자기 처방을 가지면 그 처방으로
   state.settings.alts[`${e.slotId}.${e.itemIdx}`] = exId;
   a.draft[i] = defaultDraft(e);
   save();
@@ -118,7 +126,7 @@ function entryCard(a, i, steps, cur, lastWeek) {
 
   const head = h('div', { class: 'ex-head' },
     h('div', { class: 'grow' },
-      h('div', { class: 'row wrap' }, label(`${e.slotId.slice(2)}${ssTag ? ` · ${ssTag}` : ''}`), ex.kind === 'main' && h('span', { class: 'badge amber' }, 'MAIN')),
+      h('div', { class: 'row wrap' }, label(`${slotNo(e.slotId)}${ssTag ? ` · ${ssTag}` : ''}`), ex.kind === 'main' && h('span', { class: 'badge amber' }, 'MAIN')),
       h('div', { class: 'ex-name' }, exName(e.ex)),
       h('div', { class: 'muted small' }, `${prescText(e.presc)} · 휴식 ${slot.superset && e.itemIdx < siblings.length - 1 ? '없음(→B)' : fmtClock(slot.rest)}`)),
     h('div', { class: 'num', style: 'font-size:15px;white-space:nowrap' }, `${e.sets.length}/${eff}`));
@@ -141,12 +149,12 @@ function entryCard(a, i, steps, cur, lastWeek) {
   let warm = null;
   const inputs = [];
   if (!done) {
-    if (ex.kind === 'main' && e.sets.length === 0 && !a.warmHidden[i]) warm = warmupBlock(a, i);
+    if (ex.warmup && e.sets.length === 0 && !a.warmHidden[i]) warm = warmupBlock(a, i);
     inputs.push(h('div', { class: 'inputs', style: `grid-template-columns:${usesWeight(ex) ? '1fr 1fr' : '1fr'}` },
-      usesWeight(ex) && stepper({ value: d.w, step: 2.5, min: 0, max: 500, unit: 'kg', label: ex.kind === 'assist' ? '보조 무게' : '무게', testid: 'w',
+      usesWeight(ex) && stepper({ value: d.w, step: 2.5, min: 0, max: 500, unit: 'kg', label: weightLabel(ex), testid: 'w',
         onChange: (v) => { d.w = v; save(); warm?.redraw(); } }),
       stepper({ value: d.reps, step: 1, min: 0, max: 100, label: e.presc.perSide ? '반복(한쪽)' : '반복', testid: 'reps', onChange: (v) => { d.reps = v; save(); } })));
-    if (['main', 'accessory', 'assist'].includes(ex.kind)) inputs.push(rirPicker(d.rir, (v) => { d.rir = v; save(); }, 'rir'));
+    if (['main', 'accessory', 'isolation', 'assist'].includes(ex.kind)) inputs.push(rirPicker(d.rir, (v) => { d.rir = v; save(); }, 'rir'));
     const lastSet = last?.sets[e.sets.length] ?? last?.sets.at(-1);
     inputs.push(h('div', { class: 'grid2' },
       h('button', { class: 'btn', disabled: !lastSet, 'data-testid': 'same', onclick: () => {
@@ -166,6 +174,7 @@ function entryCard(a, i, steps, cur, lastWeek) {
     head,
     e.presc.note && h('div', { class: 'small', style: 'margin-top:4px' }, `▸ ${e.presc.note}`),
     ex.target && h('div', { class: 'muted small' }, ex.target),
+    ex.intensity && h('div', { class: 'muted small' }, `강도 ${ex.intensity.label} — ${ex.intensity.cue}`),
     alts.length > 0 && h('div', { class: 'row wrap', style: 'margin-top:8px' },
       alts.map((alt) => h('button', { class: 'btn sm', disabled: e.sets.length > 0, 'data-testid': 'swap', onclick: () => swapEx(i, alt) }, `대체 ⇄ ${exName(alt)}`))),
     h('div', { class: 'setlist' }, lines),
@@ -177,6 +186,7 @@ function guardBox(a, g) {
   const box = h('div', { id: 'guard' });
   if (!g.over) return box;
   const target = trimTarget(a.plan, a.trim);
+  const what = target && slotOf(a, target).superset ? '슈퍼세트' : '종목';
   box.append(h('div', { class: 'hazard', 'data-testid': 'guard-alert' },
     label('TIME OVERRUN'),
     h('div', { style: 'font-weight:700;margin:4px 0' }, '작전 시간 초과 예상'),
@@ -184,8 +194,8 @@ function guardBox(a, g) {
     h('button', { class: 'btn block', style: 'margin-top:10px', disabled: !target, 'data-testid': 'trim', onclick: () => {
       a.trim[target] = (a.trim[target] || 0) + 1;
       save(); rerender();
-      toast(`${target.slice(2)}번 슈퍼세트 1세트 감축`);
-    } }, target ? '마지막 슈퍼세트 1세트 감축' : '더 줄일 슈퍼세트 없음')));
+      toast(`${slotNo(target)}번 ${what} 1세트 감축`);
+    } }, target ? `마지막 ${what} 1세트 감축` : '더 줄일 세트 없음')));
   return box;
 }
 
@@ -208,13 +218,24 @@ function restPanel(a) {
       h('button', { class: 'btn od', 'data-testid': 'skip-rest', onclick: () => { a.rest = null; save(); rerender(); } }, '건너뛰기')));
 }
 
+// 일반 워밍업(5분): 첫 세트 전까지만. 체력단련 직후라면 생략
+function generalWarmup(a, def) {
+  const gw = P.GENERAL_WARMUP;
+  if (!gw || a.gwDone || a.plan.entries.some((e) => e.sets.length)) return null;
+  return h('div', { class: 'card', 'data-testid': 'gw-card' },
+    h('div', { class: 'spread' }, label(`GENERAL WARM-UP · ${gw.minutes}분`),
+      h('button', { class: 'btn sm ghost', 'data-testid': 'gw-done', onclick: () => { a.gwDone = true; save(); rerender(); } }, '완료·닫기')),
+    h('div', { style: 'margin-top:4px' }, gw[def.warmup] ?? gw.upper),
+    gw.skipIfRightAfterPT && h('div', { class: 'muted small' }, '체력단련 직후라면 생략하고 동작별 워밍업 세트만'));
+}
+
 let lastOver = null;
 
 export function renderSession(root) {
   const a = state.active;
   if (!a) return go('#today');
   keepAwake(true);
-  const def = P.SESSIONS[a.key];
+  const def = sessionDef(a.key);
   const steps = buildSteps(a.plan, a.trim);
   const ni = nextStepIndex(a.plan, steps);
   if (a.focus != null && a.plan.entries[a.focus] == null) a.focus = null;
@@ -230,9 +251,10 @@ export function renderSession(root) {
       h('div', null, h('div', { class: 'k' }, 'ETA'), h('div', { class: `v${g.over ? ' over' : ''}`, id: 'hud-eta' }, seoulTimeStr(g.etaMs))),
       h('div', null, h('div', { class: 'k' }, 'SETS LEFT'), h('div', { class: 'v', id: 'hud-left' }, steps.filter((s) => !isStepDone(a.plan, s)).length))),
     h('div', { class: 'spread', style: 'margin:0 2px 10px' },
-      h('div', null, label(`${def.code} · WEEK ${a.week}`), h('div', { style: 'font-size:19px;font-weight:700' }, `${def.name} — ${def.title}`)),
+      h('div', null, label(`${def.code} · WEEK ${a.week}`), h('div', { style: 'font-size:19px;font-weight:700' }, def.name)),
       a.deload && h('span', { class: 'badge amber' }, '정비 주간')),
     guardBox(a, g),
+    generalWarmup(a, def),
     a.plan.entries.map((_, i) => entryCard(a, i, steps, cur, lastWeek)),
     ni < 0 && h('div', { class: 'card hud' }, label('ALL SETS DONE'), h('p', null, '모든 세트를 마쳤습니다. 아래 작전 종료를 눌러 판정을 실행하세요.')),
     h('div', { style: 'height:12px' }),
@@ -324,7 +346,7 @@ function endSession() {
       slotId, itemIdx, ex, presc, sets: sets.map(({ w, reps, rir }) => ({ w, reps, rir })),
     })),
     results,
-    negBase: state.exState.negPullup?.stage ?? 0,
+    negBase: state.exState.negative_pullup?.stage ?? 0,
     negEasy: false,
   };
   for (const r of results) {

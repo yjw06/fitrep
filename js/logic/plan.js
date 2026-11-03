@@ -1,10 +1,11 @@
 // 세션 계획: 처방 계산, 세트 순서(슈퍼세트 A→B 후 휴식), 60분 가드 (순수 함수)
 import { isDeloadWeek } from './dates.js';
-import { ua1Item } from './rank.js';
+import { roadmapItem } from './roadmap.js';
 
 export const restMid = ([a, b]) => Math.round((a + b) / 2 / 5) * 5;
 
-// 한 종목 처방. week 1은 RIR 3 탐색, 정비 주간은 세트 절반(올림)
+// 한 종목 처방. 1주차는 전 종목 RIR 3으로 시작 무게 탐색, 정비 주간은 세트 절반(올림).
+// rirLastOnly: 고립 종목처럼 목표 RIR을 마지막 세트에만 적용(1주차 제외)
 export function prescribe(item, ex, { week, deloadEvery, negStage = 0, negStages }) {
   const deload = isDeloadWeek(week, deloadEvery);
   let sets = item.sets, reps = item.reps, tempo = null;
@@ -12,36 +13,37 @@ export function prescribe(item, ex, { week, deloadEvery, negStage = 0, negStages
     const st = negStages[Math.min(negStage, negStages.length - 1)];
     sets = st.sets; reps = [st.reps, st.reps]; tempo = st.tempo;
   }
-  const weighted = ['main', 'accessory', 'assist'].includes(ex.kind);
-  const rir = weighted && week <= 1 ? [3, 3] : (item.rir ?? null);
+  const firstWeek = ['main', 'accessory', 'isolation', 'assist'].includes(ex.kind) && week <= 1;
+  const rir = firstWeek ? [3, 3] : (item.rir ?? null);
   if (deload) sets = Math.ceil(sets / 2);
-  return { sets, reps: [...reps], rir, tempo, perSide: !!item.perSide, note: item.note ?? '' };
+  return { sets, reps: [...reps], rir, rirLastOnly: !firstWeek && !!rir && !!item.rirLastOnly, tempo, perSide: !!item.perSide, note: item.note ?? '' };
 }
 
 /**
  * 세션 정의 → 실행 계획
- * ctx: { week, deloadEvery, negStage, negStages, alts:{slotId:exId}, exercises, pullup?:{ rank, max } }
- * pullup이 있으면 턱걸이 단계 슬롯(pullupSlot)을 계급 처방으로 교체
+ * ctx: { week, deloadEvery, negStage, negStages, alts:{'slotId.itemIdx':exId}, exercises, pullup?:{ stage, max } }
+ * pullup이 있으면 턱걸이 슬롯(pullupSlot = 요일 id)을 로드맵 단계 처방으로 교체(같은 종목이면 루틴 처방 그대로)
  */
 export function buildPlan(def, ctx) {
   const slots = [], entries = [];
   for (const slot of def.slots) {
     let items = slot.items, rest = slot.rest;
     if (slot.pullupSlot && ctx.pullup) {
-      const it = ua1Item(ctx.pullup.rank, ctx.pullup.max);
-      items = [it];
+      const it = roadmapItem(ctx.pullup.stage, slot.pullupSlot, ctx.pullup.max);
+      items = [it.ex === slot.items[0].ex ? slot.items[0] : it];
       if (it.rest) rest = [it.rest, it.rest];
     }
-    slots.push({ id: slot.id, rest: restMid(rest), superset: items.length > 1 });
+    // fixed: 시간 초과 감축에서 빼는 슬롯(턱걸이 슬롯·메인 리프트)
+    const fixed = !!slot.pullupSlot || items.some((it) => ctx.exercises[it.ex]?.kind === 'main');
+    slots.push({ id: slot.id, rest: restMid(rest), superset: items.length > 1, fixed });
     items.forEach((item, i) => {
-      const options = [item.ex, ...(item.alts ?? [])];
+      // 대체 종목: 문자열이면 같은 처방, 객체면 그 처방(sets·reps·note)으로
+      const specs = [item, ...(item.alts ?? []).map((a) => (typeof a === 'string' ? { ...item, ex: a } : a))];
+      const options = specs.map((sp) => sp.ex);
       const chosen = ctx.alts?.[`${slot.id}.${i}`];
       const exId = options.includes(chosen) ? chosen : item.ex;
-      entries.push({
-        slotId: slot.id, itemIdx: i, ex: exId, options,
-        presc: prescribe(item, ctx.exercises[exId], ctx),
-        sets: [],
-      });
+      const prescs = Object.fromEntries(specs.map((sp) => [sp.ex, prescribe(sp, ctx.exercises[sp.ex], ctx)]));
+      entries.push({ slotId: slot.id, itemIdx: i, ex: exId, options, prescs, presc: prescs[exId], sets: [] });
     });
   }
   return { slots, entries, deload: isDeloadWeek(ctx.week, ctx.deloadEvery) };
@@ -84,14 +86,10 @@ export function guard({ now, startedAt, remaining, limitMin = 60 }) {
   return { elapsedSec, etaMs, limitMs, over: etaMs > limitMs, overSec: Math.max(0, (etaMs - limitMs) / 1000) };
 }
 
-// [마지막 슈퍼세트 1세트 감축] 대상 슬롯: 줄일 세트가 남은 마지막 슈퍼세트
+// [마지막 슈퍼세트 1세트 감축] 대상 슬롯: 줄일 세트가 남은 마지막 슈퍼세트.
+// 슈퍼세트가 없는 날(등)은 메인·턱걸이 슬롯을 뺀 마지막 종목. 이미 한 세트 아래로는 안 줄인다.
 export function trimTarget(plan, trim = {}) {
-  for (let i = plan.slots.length - 1; i >= 0; i--) {
-    const slot = plan.slots[i];
-    if (!slot.superset) continue;
-    const t = trim[slot.id] || 0;
-    const canTrim = plan.entries.some((e) => e.slotId === slot.id && e.presc.sets - t > Math.max(e.sets.length, 1));
-    if (canTrim) return slot.id;
-  }
-  return null;
+  const canTrim = (slot) => plan.entries.some((e) => e.slotId === slot.id && e.presc.sets - (trim[slot.id] || 0) > Math.max(e.sets.length, 1));
+  const rev = [...plan.slots].reverse();
+  return (rev.find((s) => s.superset && canTrim(s)) ?? rev.find((s) => !s.superset && !s.fixed && canTrim(s)))?.id ?? null;
 }
